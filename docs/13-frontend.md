@@ -107,4 +107,4 @@ web/
 | 23 | Vite | Sub-second HMR. Proxy in dev, embed in prod. |
 | 24 | SPA (no SSR) | Decouples frontend and backend. Contract is the proto file. |
 | 25 | `embed.FS` for production | Single binary deployment. No separate file server. |
-| 29 | No server-side templates | API-first. Frontend is replaceable. |
+| 29 | No server-side rendering or templates | API-first. Frontend is replaceable. |

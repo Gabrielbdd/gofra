@@ -34,11 +34,11 @@ with Postgres. Same language, same runtime, same deployment model. The
 supports both Relying Party (client) and OpenID Provider (server) roles, is
 certified by the OpenID Foundation, and is what Zitadel itself uses.
 
-**Multi-tenancy is native.** Zitadel's hierarchy — Instance > Organization >
-Project > Application — maps directly to SaaS use cases. Each customer
-organization gets its own users, branding, and login policies. This is
-day-one architecture, not bolted on later. If a Forge app evolves into a
-multi-tenant SaaS, the identity layer is already structured for it.
+**Organizations and multi-tenancy are native.** Zitadel's hierarchy —
+Instance > Organization > Project > Application — maps well to general web
+applications that need users, teams, org boundaries, or full multi-tenancy.
+If an app is simple, it can still live inside one default organization. If it
+grows into a multi-tenant SaaS later, the identity model is already there.
 
 **Single binary, self-hostable.** Zitadel runs as one binary with one Postgres
 database (which can be the same Postgres instance Forge uses, in a separate
@@ -179,21 +179,16 @@ This is the recommended pattern for SPAs.
 // forge/auth_interceptor.go
 
 type AuthInterceptor struct {
-    verifier *oidc.IDTokenVerifier
-    provider *oidc.Provider
+    verifier *auth.AccessTokenVerifier
 }
 
-func NewAuthInterceptor(issuerURL, clientID string) (*AuthInterceptor, error) {
-    provider, err := oidc.NewProvider(context.Background(), issuerURL)
+func NewAuthInterceptor(issuerURL, audience string) (*AuthInterceptor, error) {
+    verifier, err := auth.NewAccessTokenVerifier(issuerURL, audience)
     if err != nil {
-        return nil, fmt.Errorf("oidc provider discovery: %w", err)
+        return nil, fmt.Errorf("jwt verifier setup: %w", err)
     }
 
-    verifier := provider.Verifier(&oidc.Config{
-        ClientID: clientID,
-    })
-
-    return &AuthInterceptor{verifier: verifier, provider: provider}, nil
+    return &AuthInterceptor{verifier: verifier}, nil
 }
 
 func (a *AuthInterceptor) Unary() connect.UnaryInterceptorFunc {
@@ -209,21 +204,10 @@ func (a *AuthInterceptor) Unary() connect.UnaryInterceptorFunc {
                 return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("missing token"))
             }
 
-            // Validate JWT: signature (via JWKS), audience, expiry, issuer
-            idToken, err := a.verifier.Verify(ctx, token)
+            // Validate access token: signature (via JWKS), audience, expiry, issuer
+            claims, err := a.verifier.Verify(ctx, token)
             if err != nil {
                 return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("invalid token: %w", err))
-            }
-
-            // Extract claims
-            var claims struct {
-                Sub   string              `json:"sub"`
-                Email string              `json:"email"`
-                Roles map[string][]string  `json:"urn:zitadel:iam:org:project:roles"`
-                OrgID string              `json:"urn:zitadel:iam:org:id"`
-            }
-            if err := idToken.Claims(&claims); err != nil {
-                return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("parsing claims: %w", err))
             }
 
             // Flatten Zitadel role structure to []string
@@ -243,10 +227,11 @@ func (a *AuthInterceptor) Unary() connect.UnaryInterceptorFunc {
 }
 ```
 
-**Reason for `coreos/go-oidc`**: It handles JWKS fetching, key rotation,
-signature verification, and claim parsing. The library caches JWKS keys and
-polls for updates — no manual key management. It's maintained by CoreOS/RedHat
-and widely used in the Go ecosystem.
+**Reason for an access-token verifier backed by OIDC discovery + JWKS**: the
+API receives bearer access tokens, not ID tokens. The verifier should use
+Zitadel's discovery metadata to find the JWKS endpoint, cache public keys,
+validate JWT signatures locally, and parse claims without a network round trip
+per request.
 
 **Reason for stateless JWT validation**: The interceptor validates the token
 locally using Zitadel's public keys (fetched once and cached via JWKS). No
@@ -632,10 +617,10 @@ function is the seam where a policy engine can be plugged in.
 | 67 | Couple with Zitadel for identity | Go-native, Connect RPC API, single binary, multi-tenant native, OIDC certified. Eliminates thousands of lines of security-critical code. |
 | 68 | OIDC Authorization Code + PKCE for SPA | Standard for public clients. Prevents code interception. No client_secret in the browser. |
 | 69 | Stateless JWT validation via JWKS | No per-request call to Zitadel. Fast. Keys cached and auto-rotated. |
-| 70 | `coreos/go-oidc` for JWT verification | Handles JWKS, key rotation, signature, claims. Widely used, well-maintained. |
+| 70 | OIDC discovery + local JWT verification for access tokens | Uses Zitadel discovery metadata and cached JWKS keys. Verifies bearer access tokens locally. |
 | 71 | Roles in Zitadel, permissions in Go | Zitadel manages role assignment. Application defines what roles mean (permissions). Clean separation. |
 | 72 | Static role→permission map | Small, changes with code deploys, testable. Can move to DB later without changing the interface. |
-| 73 | Resource-level authz in handlers, not interceptor | Requires loading the resource. Can't check "can edit this post" without knowing who owns it. |
+| 73 | Resource-level authz in RPC handlers, not interceptor | Requires loading the resource. Can't check "can edit this post" without knowing who owns it. |
 | 74 | JIT user profile creation | No sync between Zitadel and Forge. Profile created on first API call. No webhooks, no eventual consistency. |
 | 75 | `zitadel_user_id TEXT` as PK | Zitadel IDs are opaque strings. Direct PK avoids surrogate key and simplifies joins. |
 | 76 | Admin handlers proxy to Zitadel via service account | SPA doesn't get admin Zitadel credentials. Forge enforces authz before forwarding. |

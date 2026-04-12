@@ -2,9 +2,12 @@
 
 ## What Is Forge
 
-Forge is a batteries-included Go web application framework. It uses Connect RPC
-for type-safe APIs, Restate for durable execution, PostgreSQL for data, and a
-React SPA frontend — all shipped as a single binary.
+Forge is an opinionated, batteries-included Go framework for general web
+applications. It borrows the productivity goal of Phoenix, Laravel, and Rails,
+but positions itself as an API-first system: Connect RPC for typed APIs,
+Restate for durable execution, PostgreSQL for domain data, Zitadel for
+identity, and a React SPA as the default frontend — all shipped as a single
+binary plus required infrastructure.
 
 ## How to Read This Documentation
 
@@ -40,7 +43,7 @@ human engineers reading sequentially and AI agents searching for specific topics
 API:          Protocol Buffers → buf generate → Connect RPC (Go) + Connect-Query (TS)
 Server:       Go + chi router + Connect handlers + Restate SDK
 Database:     PostgreSQL + sqlc (queries) + goose (migrations) + pgx (driver)
-Auth:         Zitadel (OIDC) + JWT validation + RBAC permissions in Go
+Auth:         Zitadel (OIDC, users, orgs) + JWT validation + RBAC permissions in Go
 Frontend:     React + Vite + TanStack Router + TanStack Query + shadcn + Tailwind 4
 Observability: slog + OpenTelemetry + otelconnect + Jaeger
 Config:       koanf (YAML + env + flags)

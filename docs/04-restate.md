@@ -7,9 +7,10 @@
 
 Restate is not an optional backend. It is the runtime for all durable operations
 in Forge. The framework uses Restate's SDK directly — no wrappers, no abstraction
-layers. Forge provides the HTTP layer, ORM, templating, validation, and developer
-tooling. Restate provides durable execution, state machines, workflows, scheduling,
-and reliable messaging.
+layers. Forge provides the HTTP/RPC layer, data access, validation, auth/authz
+integration, static asset serving, and developer tooling. Restate provides
+durable execution, state machines, workflows, scheduling, and reliable
+messaging.
 
 The developer writes Restate handlers using the Restate Go SDK. Forge's job is to
 make this ergonomic: scaffolding, auto-registration, dev server management, testing
@@ -28,8 +29,8 @@ helpers, and glue between HTTP and Restate.
               │   (chi router)      │
               │                     │
               │ • Routes & Middleware│
+              │ • Connect handlers  │
               │ • Sessions & Auth   │
-              │ • Templ rendering   │
               │ • Validation        │
               │ • Static files      │
               │ • WebSocket proxy   │
@@ -88,21 +89,20 @@ Restate Server in development.
 | Rate limiting (per-entity) | Virtual Object single-writer | One execution at a time per key |
 | Saga / compensation | `defer` + journaled steps | Terminal errors trigger compensation |
 | Webhook waiting | Awakeables | Suspend, resolve from HTTP |
-| Email verification flow | Workflow + Durable Promise | Suspend until user clicks link |
-| Password reset flow | Workflow + Durable Promise | Suspend until user submits form |
+| Payment confirmation flow | Workflow + Durable Promise | Suspend until provider webhook arrives |
+| Manual approval flow | Workflow + Durable Promise | Suspend until a user or admin confirms |
 
 ## What Forge Keeps
 
 | Subsystem | Why It Stays |
 |-----------|-------------|
-| HTTP Router (chi-based) | Restate doesn't serve HTML to browsers |
+| HTTP/RPC layer (chi + Connect) | Restate doesn't serve public API traffic or static assets |
 | Middleware pipeline | Sessions, CSRF, CORS, auth — HTTP concerns |
-| ORM / Query Builder | Postgres is the source of truth for domain data. Restate K/V is for operational state. |
+| Data access / query layer | Postgres is the source of truth for domain data. Restate K/V is for operational state. |
 | Migrations & Seeds | Schema management is a DB concern |
 | Validation | Request validation happens before durable execution |
-| Templ rendering | Server-side HTML |
 | Auth (sessions, tokens) | HTTP-layer identity |
-| Authorization (policies) | Business rules, checked in HTTP handlers |
+| Authorization (policies) | Business rules, checked in RPC or HTTP handlers |
 | File Storage | S3/local — orthogonal to execution |
 | HTTP Client | Making external API calls (wrapped in `restate.Run` when inside handlers) |
 | Cache (Redis/memory) | Response caching, fragment caching — HTTP perf concern |
@@ -124,13 +124,15 @@ myapp/
 ├── .env
 │
 ├── app/
-│   ├── handlers/                # HTTP handlers (controllers)
-│   │   ├── posts_handler.go
-│   │   ├── auth_handler.go
-│   │   └── api/
-│   │       └── posts_handler.go
+│   ├── rpc/                     # Connect RPC service implementations
+│   │   ├── posts_service.go
+│   │   ├── auth_service.go
+│   │   └── users_service.go
 │   │
-│   ├── models/                  # Domain models + ORM
+│   ├── http/                    # Plain HTTP handlers for webhooks/callbacks
+│   │   └── payment_webhook.go
+│   │
+│   ├── models/                  # Domain models + query helpers
 │   │   ├── user.go
 │   │   └── post.go
 │   │
@@ -145,9 +147,9 @@ myapp/
 │   │   └── scheduler.go         # Cron job scheduler
 │   │
 │   ├── workflows/               # Restate Workflows (multi-step processes)
-│   │   ├── user_signup.go       # Registration + email verification
-│   │   ├── password_reset.go    # Reset flow with token
-│   │   └── order_checkout.go    # Payment + fulfillment
+│   │   ├── order_checkout.go    # Payment callback + fulfillment
+│   │   ├── payout_approval.go   # Human approval flow
+│   │   └── report_export.go     # Long-running export pipeline
 │   │
 │   ├── middleware/
 │   ├── policies/
@@ -165,9 +167,12 @@ myapp/
 │   └── factories/
 │
 ├── resources/
-│   ├── views/                   # Templ templates
 │   ├── mail/                    # Email templates
 │   └── lang/                    # i18n files
+│
+├── web/                         # React SPA
+│   ├── src/
+│   └── dist/
 │
 └── tests/
 ```
@@ -185,7 +190,7 @@ primitive it uses.
 package main
 
 import (
-    "myapp/app/handlers"
+    "myapp/app/rpc"
     "myapp/app/services"
     "myapp/app/objects"
     "myapp/app/workflows"
@@ -200,10 +205,10 @@ func main() {
     // Load config from .env + forge.yaml
     app.LoadConfig()
 
-    // Setup database (ORM, migrations check)
+    // Setup database (queries, migrations check)
     app.SetupDB()
 
-    // Register HTTP routes
+    // Register HTTP routes + Connect handlers
     app.HTTP(config.Routes)
 
     // Register Restate services — all in one place
@@ -218,9 +223,8 @@ func main() {
         r.Object(objects.Scheduler{})
 
         // Workflows (exactly-once, multi-step)
-        r.Workflow(workflows.UserSignup{})
-        r.Workflow(workflows.PasswordReset{})
         r.Workflow(workflows.OrderCheckout{})
+        r.Workflow(workflows.PayoutApproval{})
     })
 
     // Start everything
@@ -281,37 +285,36 @@ func (MailService) Send(ctx restate.Context, req SendMailRequest) error {
 }
 ```
 
-**Dispatching from an HTTP handler:**
+**Dispatching from a Connect RPC handler:**
 
 ```go
-// app/handlers/auth_handler.go
-func (h AuthHandler) Register(c *forge.Context) error {
-    var input RegisterInput
-    if err := c.BindAndValidate(&input); err != nil {
-        return err
-    }
-
-    user, err := h.createUser(c, input)
+// app/rpc/posts_service.go
+func (s *PostsService) CreatePost(
+    ctx context.Context,
+    req *connect.Request[postsv1.CreatePostRequest],
+) (*connect.Response[postsv1.Post], error) {
+    post, err := s.createPost(ctx, req.Msg.Post)
     if err != nil {
-        return err
+        return nil, err
     }
 
-    // Start the signup workflow (exactly-once per user ID)
-    c.Restate().Workflow("UserSignup", fmt.Sprint(user.ID), "Run").
-        Send(workflows.SignupRequest{
-            UserID: user.ID,
-            Email:  user.Email,
-        })
+    if err := s.restate.Service("SearchIndexer", "IndexPost").Send(
+        services.IndexPostRequest{PostID: post.ID},
+    ); err != nil {
+        return nil, err
+    }
 
-    // Send welcome email (durable, fire-and-forget)
-    c.Restate().Service("MailService", "Send").
-        Send(services.SendMailRequest{
-            To:       user.Email,
-            Template: "welcome",
-            Data:     map[string]any{"name": user.Name},
-        })
+    if err := s.restate.Object("NotificationFeed", fmt.Sprint(post.AuthorID), "Send").Send(
+        objects.NotifyRequest{
+            Title:   "Post published",
+            Body:    post.Title,
+            Channel: "all",
+        },
+    ); err != nil {
+        return nil, err
+    }
 
-    return c.Redirect("/check-your-email")
+    return connect.NewResponse(post.ToProto()), nil
 }
 ```
 
@@ -359,7 +362,7 @@ func Events() forge.EventMap {
             {Service: "SearchIndexer", Handler: "IndexPost"},
         },
         "user.created": {
-            // The signup workflow handles everything — no extra listeners needed
+            // Zitadel + JIT profile creation handle identity bootstrap
         },
     }
 }
@@ -368,7 +371,7 @@ func Events() forge.EventMap {
 **Dispatching:**
 
 ```go
-// In an HTTP handler or anywhere with access to the Restate client:
+// In a Connect RPC handler or anywhere with access to the Restate client:
 c.Events().Dispatch("post.created", PostCreatedPayload{
     PostID:   post.ID,
     AuthorID: post.AuthorID,
@@ -388,18 +391,20 @@ Every listener execution is individually durable. If `WebhookDelivery` crashes,
 plain Go function calls — no Restate involvement:
 
 ```go
-// In the HTTP handler itself:
-func (h PostsHandler) Create(c *forge.Context) error {
+// In the RPC handler itself:
+func (s *PostsService) CreatePost(
+    ctx context.Context,
+    req *connect.Request[postsv1.CreatePostRequest],
+) (*connect.Response[postsv1.Post], error) {
     post := // ... save to DB ...
 
-    // Inline: must happen before response (e.g., update cache, set flash)
+    // Inline: must happen before response (e.g., update cache)
     cache.Forget("posts:latest")
-    c.Flash("success", "Post created!")
 
     // Async: durable delivery via Restate
-    c.Events().Dispatch("post.created", PostCreatedPayload{...})
+    s.events.Dispatch("post.created", PostCreatedPayload{...})
 
-    return c.Redirect("/posts/" + post.Slug)
+    return connect.NewResponse(post.ToProto()), nil
 }
 ```
 
@@ -477,7 +482,7 @@ func (NotificationFeed) MarkRead(ctx restate.ObjectContext) error {
 }
 ```
 
-**From HTTP handlers:**
+**From RPC or HTTP handlers:**
 
 ```go
 // Send notification
@@ -487,113 +492,108 @@ c.Restate().Object("NotificationFeed", userID, "Send").Send(NotifyRequest{
     Channel: "all",
 })
 
-// Read notification count (for navbar badge)
-func (h DashboardHandler) Show(c *forge.Context) error {
-    // Request-response call to Restate (waits for result)
-    count, err := forge.RestateRequest[int](c, "NotificationFeed", c.UserID(), "GetUnreadCount", nil)
+// Read notification count for an API badge endpoint
+func (s *NotificationsService) GetUnreadCount(
+    ctx context.Context,
+    req *connect.Request[notificationsv1.GetUnreadCountRequest],
+) (*connect.Response[notificationsv1.GetUnreadCountResponse], error) {
+    count, err := forge.RestateRequest[int](ctx, s.restate, "NotificationFeed", req.Msg.UserId, "GetUnreadCount", nil)
     if err != nil {
         count = 0 // graceful degradation
     }
-    return c.Render("dashboard", forge.Map{"unread": count})
+    return connect.NewResponse(&notificationsv1.GetUnreadCountResponse{
+        Count: int32(count),
+    }), nil
 }
 ```
 
 ---
 
-### Auth Flows → Workflows
+### Checkout & External Callbacks → Workflows
 
-Email verification as a Restate Workflow — the cleanest version of this pattern:
+Order checkout as a Restate Workflow — the cleanest version of this pattern:
 
 ```go
-// app/workflows/user_signup.go
+// app/workflows/order_checkout.go
 package workflows
 
 import (
-    "fmt"
     restate "github.com/restatedev/sdk-go"
     "myapp/pkg/db"
-    "myapp/pkg/mailer"
 )
 
-type UserSignup struct{}
+type OrderCheckout struct{}
 
-type SignupRequest struct {
-    UserID int64  `json:"user_id"`
-    Email  string `json:"email"`
+type CheckoutRequest struct {
+    OrderID int64  `json:"order_id"`
+    PaymentRef string `json:"payment_ref"`
 }
 
-// Run executes exactly once per workflow key (= user ID string)
-func (UserSignup) Run(ctx restate.WorkflowContext, req SignupRequest) (bool, error) {
-    // Step 1: Generate verification token (deterministic — same on replay)
-    token := restate.UUID(ctx).String()
+type PaymentResult struct {
+    Succeeded bool   `json:"succeeded"`
+    ProviderID string `json:"provider_id"`
+}
 
-    // Step 2: Store token in DB
+// Run executes exactly once per workflow key (= order ID string)
+func (OrderCheckout) Run(ctx restate.WorkflowContext, req CheckoutRequest) (bool, error) {
+    // Step 1: mark the order as waiting for payment confirmation
     _, err := restate.Run(ctx, func(ctx restate.RunContext) (restate.Void, error) {
-        return restate.Void{}, db.StoreVerificationToken(req.UserID, token)
-    }, restate.WithName("store-token"))
+        return restate.Void{}, db.MarkOrderPending(req.OrderID, req.PaymentRef)
+    }, restate.WithName("mark-pending"))
     if err != nil {
         return false, err
     }
 
-    // Step 3: Send verification email
+    // Step 2: suspend until the payment provider confirms or rejects the charge
+    result, err := restate.Promise[PaymentResult](ctx, "payment-confirmed").Result()
+    if err != nil {
+        return false, err
+    }
+
+    // Step 3: fail permanently if the payment did not succeed
+    if !result.Succeeded {
+        return false, restate.TerminalErrorf("payment failed")
+    }
+
+    // Step 4: mark the order as paid
     _, err = restate.Run(ctx, func(ctx restate.RunContext) (restate.Void, error) {
-        link := fmt.Sprintf("https://myapp.com/verify/%d/%s", req.UserID, token)
-        return restate.Void{}, mailer.Send(req.Email, "Verify your email", link)
-    }, restate.WithName("send-email"))
-    if err != nil {
-        return false, err
-    }
-
-    // Step 4: SUSPEND — wait for the user to click the link
-    // No resources consumed. On FaaS, the function shuts down.
-    // Restate wakes it when the promise is resolved.
-    clickedToken, err := restate.Promise[string](ctx, "email-verified").Result()
-    if err != nil {
-        return false, err
-    }
-
-    // Step 5: Validate
-    if clickedToken != token {
-        return false, restate.TerminalErrorf("invalid token")
-    }
-
-    // Step 6: Mark verified
-    _, err = restate.Run(ctx, func(ctx restate.RunContext) (restate.Void, error) {
-        return restate.Void{}, db.MarkUserVerified(req.UserID)
-    }, restate.WithName("mark-verified"))
+        return restate.Void{}, db.MarkOrderPaid(req.OrderID, result.ProviderID)
+    }, restate.WithName("mark-paid"))
 
     return err == nil, err
 }
 
-// VerifyEmail — called when user clicks the link. Resolves the promise.
-func (UserSignup) VerifyEmail(ctx restate.WorkflowSharedContext, token string) error {
-    return restate.Promise[string](ctx, "email-verified").Resolve(token)
+// ConfirmPayment — called by a webhook handler. Resolves the promise.
+func (OrderCheckout) ConfirmPayment(ctx restate.WorkflowSharedContext, result PaymentResult) error {
+    return restate.Promise[PaymentResult](ctx, "payment-confirmed").Resolve(result)
 }
 ```
 
-**The HTTP handler that receives the verification click:**
+**The plain HTTP handler that receives the provider webhook:**
 
 ```go
 // config/routes.go
-r.Get("/verify/{userID}/{token}", handlers.VerifyEmail)
+r.Post("/webhooks/payments", http.PaymentWebhook)
 
-// app/handlers/auth_handler.go
-func VerifyEmail(c *forge.Context) error {
-    userID := c.Param("userID")
-    token := c.Param("token")
+// app/http/payment_webhook.go
+func PaymentWebhook(w http.ResponseWriter, r *http.Request) {
+    event := decodeProviderEvent(r)
 
-    // Signal the workflow — resolves the durable promise
-    err := c.Restate().Workflow("UserSignup", userID, "VerifyEmail").Send(token)
-    if err != nil {
-        return c.Error(err)
-    }
+    _ = restateClient.Workflow(
+        "OrderCheckout",
+        strconv.FormatInt(event.OrderID, 10),
+        "ConfirmPayment",
+    ).Send(workflows.PaymentResult{
+        Succeeded: event.Status == "paid",
+        ProviderID: event.PaymentID,
+    })
 
-    c.Flash("success", "Email verified! You can now log in.")
-    return c.Redirect("/login")
+    w.WriteHeader(http.StatusAccepted)
 }
 ```
 
-No tokens table, no expiration cron job, no race conditions. Six steps, one file.
+No polling worker, no retry cron, no "restart from step 1" failure mode. One
+durable workflow, one callback entry point.
 
 ---
 
@@ -708,8 +708,8 @@ func Schedules() []forge.Schedule {
 
 ## The HTTP ↔ Restate Bridge
 
-The glue between Forge's HTTP layer and Restate is minimal. The `forge.Context`
-gets a `.Restate()` method that returns a pre-configured ingress client:
+The glue between Forge's request layer and Restate is minimal. RPC services and
+plain HTTP handlers both use the same pre-configured ingress client:
 
 ```go
 // forge/context.go
@@ -779,7 +779,7 @@ forge build                                  # compile binary (HTTP + Restate en
 
 # === Generators ===
 forge generate model Post title:string body:text
-forge generate handler Posts --resource
+forge generate rpc Posts
 forge generate migration add_views_to_posts
 
 # Restate-specific generators:
@@ -890,7 +890,7 @@ func (OrderCheckout) Run(ctx restate.WorkflowContext, req OrderCheckoutRequest) 
 
 ## Testing
 
-### Testing HTTP Handlers (unchanged from original design)
+### Testing API Handlers (unchanged from original design)
 
 ```go
 func TestCreatePost(t *testing.T) {
@@ -1080,5 +1080,6 @@ Coming from Laravel/Rails, developers need to internalize three concepts:
    if you need high throughput per key. Delegate heavy work to a Service via
    one-way message.
 
-Everything else — HTTP routing, ORM, templates, validation, auth — works exactly
-like any other Go web framework. Restate only touches the "durable operations" layer.
+Everything else — HTTP routing, Connect handlers, data access, validation,
+auth, frontend integration — works like any other Go web framework. Restate
+only touches the "durable operations" layer.

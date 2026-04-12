@@ -27,7 +27,7 @@
 | 13 | Restate for durable ops | Crash recovery at step level. Replaces queue + scheduler + saga. | [04](04-restate.md) |
 | 14 | Restate SDK direct (no wrapper) | One API to learn. Type-safe context hierarchy. | [04](04-restate.md) |
 | 15 | Virtual Objects for stateful entities | Per-key single-writer. No DB locks. | [04](04-restate.md) |
-| 16 | Workflows for auth flows | Suspend on Durable Promise. Resume on user action. | [04](04-restate.md) |
+| 16 | Workflows for long-running business flows | Suspend on Durable Promise. Resume on external callback or user action. | [04](04-restate.md) |
 | 17 | Postgres for domain data | Complex queries, joins, FTS. Restate K/V for operational state. | [05](05-database.md) |
 | 18 | Explicit DI via struct fields | No service container. No globals. | [01](01-foundations.md) |
 | 19 | Explicit `ToProto()`/`FromProto()` conversion | Model ≠ API message. Two types, two concerns. | [02](02-system-architecture.md) |
@@ -40,7 +40,7 @@
 | 26 | mise for tools + tasks | Pins versions. Replaces Makefile. Incremental builds. | [14](14-tooling.md) |
 | 27 | forge CLI for generators only | Generators need Go code. Tasks are TOML. | [14](14-tooling.md) |
 | 28 | Events as map + loop | ~15 lines. Each listener durable via Restate. | [04](04-restate.md) |
-| 29 | No server-side templates | API-first. Frontend is replaceable. | [13](13-frontend.md) |
+| 29 | No server-side rendering or templates | API-first. Frontend is replaceable. | [13](13-frontend.md) |
 | 30 | `RestateRecorder` for handler tests | Fast HTTP tests without Docker. | [16](16-testing.md) |
 | 31 | Docker-based Restate integration tests | Durable handlers need real journal. | [16](16-testing.md) |
 | 32 | Skip AIP-122 (resource name hierarchy) | Web apps use `id`/`slug`, not `publishers/123/books/456`. | [03](03-api-layer.md) |
@@ -101,10 +101,10 @@
 | 67 | Couple with Zitadel for identity | Go-native, Connect RPC API, single binary, multi-tenant, OIDC certified. | [08](08-auth.md) |
 | 68 | OIDC Authorization Code + PKCE for SPA | Standard for public clients. No client_secret in browser. | [08](08-auth.md) |
 | 69 | Stateless JWT validation via JWKS | No per-request call to Zitadel. Keys cached and auto-rotated. | [08](08-auth.md) |
-| 70 | coreos/go-oidc for JWT verification | Handles JWKS, key rotation, signature, claims. | [08](08-auth.md) |
+| 70 | OIDC discovery + local JWT verification for access tokens | Uses Zitadel discovery metadata and cached JWKS keys. | [08](08-auth.md) |
 | 71 | Roles in Zitadel, permissions in Go | Clean separation. Zitadel manages assignment, app defines meaning. | [08](08-auth.md) |
 | 72 | Static role→permission map | Small, testable, version-controlled. Can move to DB later. | [08](08-auth.md) |
-| 73 | Resource-level authz in handlers | Requires loading the resource. Can't check in interceptor. | [08](08-auth.md) |
+| 73 | Resource-level authz in RPC handlers | Requires loading the resource. Can't check in interceptor. | [08](08-auth.md) |
 | 74 | JIT user profile creation | No sync. Profile created on first API call. | [08](08-auth.md) |
 | 75 | `zitadel_user_id TEXT` as PK | Zitadel IDs are opaque strings. Direct PK avoids surrogate. | [08](08-auth.md) |
 | 76 | Admin handlers proxy to Zitadel | SPA doesn't get admin credentials. Forge enforces authz. | [08](08-auth.md) |

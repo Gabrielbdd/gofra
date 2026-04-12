@@ -30,6 +30,20 @@ Deploy alongside a Restate Server and a Postgres database. Nothing else.
 
 ---
 
+## Positioning
+
+Forge is not trying to recreate server-rendered Rails, Laravel, or Phoenix in
+Go. It borrows the batteries-included mindset and convention-driven developer
+experience, but its position is different: an API-first framework for general
+web applications, with typed Connect RPC contracts, a default React SPA,
+required Zitadel-based identity, and Restate for durable workflows.
+
+That makes Forge closer to an opinionated Go application platform than a thin
+HTTP toolkit. The tradeoff is deliberate: more upfront structure, fewer
+infrastructure decisions left to each project.
+
+---
+
 ## Technology Choices
 
 ### Go
@@ -83,8 +97,9 @@ merge semantics. See [Configuration](06-configuration.md).
 
 ### Zitadel
 
-**Decision #67.** External identity provider for authentication. Go-native,
-Connect RPC API, self-hostable single binary, multi-tenant.
+**Decision #67.** Required identity system for authentication, users, and
+organizations. Go-native, Connect RPC API, self-hostable single binary,
+multi-tenant.
 See [Auth](08-auth.md).
 
 ### React + Vite + TanStack + shadcn + Tailwind 4
@@ -107,11 +122,11 @@ See [Observability](07-observability.md).
 
 ## Non-Goals
 
-- No server-side rendering. The Go server serves an API and static files.
+- No server-side rendering or HTML templating. The Go server serves APIs and static assets.
 - Not wrapping Connect RPC or Restate SDK in framework abstractions.
 - Not an ORM. sqlc generates from SQL. No model methods.
 - Not a service container. Go uses explicit struct fields.
-- Not trying to replicate Rails/Laravel idioms. Go-native patterns.
+- Not a line-by-line port of Rails, Laravel, or Phoenix. Forge borrows DX ideas, but keeps Go-native patterns and an API-first architecture.
 
 ---
 
@@ -127,4 +142,4 @@ See [Observability](07-observability.md).
 | 18 | Explicit DI via struct fields | No service container. No globals. |
 | 20 | chi router | `net/http` compatible. Connect handlers mount directly. |
 | 24 | SPA (no SSR) | Decouples frontend and backend. Contract is the proto file. |
-| 29 | No server-side templates | API-first. Frontend is replaceable. |
+| 29 | No server-side rendering or templates | API-first. Frontend is replaceable. |

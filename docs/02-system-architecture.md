@@ -135,7 +135,7 @@ embedded in the Go binary via `//go:embed`.
 **Why the frontend is a separate concern**: The contract between frontend and
 backend is the `.proto` file. The frontend can be replaced with Next.js, Svelte,
 or a mobile app without changing a single line of Go. The framework scaffolds
-the default template but does not couple to it.
+the default SPA but does not couple to it.
 
 ### mise
 
@@ -253,7 +253,7 @@ myapp/
 │   │   └── scheduler.go
 │   │
 │   └── workflows/               # Restate Workflows (multi-step processes)
-│       ├── user_signup.go
+│       ├── approval_flow.go
 │       └── order_checkout.go
 │
 ├── db/
@@ -1055,7 +1055,7 @@ will retry them on the next available instance. No data is lost.
 | 13 | Restate for durable ops | Crash recovery at step level. Replaces queue + scheduler + saga + workflow. |
 | 14 | Restate SDK direct | No wrapper. One API to learn. Type-safe context hierarchy. |
 | 15 | Virtual Objects | Per-key single-writer. No DB locks for shopping carts, notification counts. |
-| 16 | Workflows for auth flows | Email verification, password reset. Suspend on Durable Promise. |
+| 16 | Workflows for long-running business flows | Checkout, approvals, external callbacks. Suspend on Durable Promise. |
 | 17 | Postgres for domain data | Complex queries, joins, FTS. Restate K/V for operational state. |
 | 18 | Explicit DI via struct fields | No service container. No globals. Read `main.go` to trace everything. |
 | 19 | `ToProto()`/`FromProto()` | Explicit conversion. Model ≠ API message. Two types, two concerns. |
@@ -1068,7 +1068,7 @@ will retry them on the next available instance. No data is lost.
 | 26 | mise for tools + tasks | Pins tool versions. Replaces Makefile. Incremental builds. |
 | 27 | forge CLI for generators only | Generators need Go code. Tasks are declarative TOML. |
 | 28 | Events as map + loop | ~15 lines. Each listener is independently durable via Restate. |
-| 29 | No server-side templates | API-first. Frontend is replaceable. |
+| 29 | No server-side rendering or templates | API-first. Frontend is replaceable. |
 | 30 | `RestateRecorder` for tests | Fast HTTP tests without Docker. Verify dispatch, not execution. |
 | 31 | Docker-based Restate tests | Durable handlers need real journal to test correctly. Tagged `integration`. |
 | 32 | Skip AIP-122 (resource names) | Hierarchical names are for infrastructure APIs. Web apps use `id`/`slug`. |

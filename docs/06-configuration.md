@@ -1,0 +1,448 @@
+# 06 — Configuration: koanf
+
+> Parent: [Index](00-index.md) | Prev: [Database](05-database.md) | Next: [Observability](07-observability.md)
+
+
+## Addendum to Architecture Design Document
+## Last Updated: 2026-04-12
+
+---
+
+## The Problem
+
+A Forge application needs configuration from three sources with clear
+precedence:
+
+1. **YAML file** (`forge.yaml`) — project defaults, checked into version
+   control. Defines the shape of the config and documents every option.
+2. **Environment variables** — deployment-specific overrides. Secrets, DSNs,
+   API keys. Set by the platform (Docker, Kubernetes, systemd).
+3. **CLI flags** — one-off overrides for development and debugging.
+   `--port=4000`, `--log-level=debug`.
+
+Precedence: **flags > env > yaml file > defaults**. A flag overrides an env
+var, which overrides the YAML file, which overrides a hardcoded default.
+
+---
+
+## Why koanf
+
+### Options considered
+
+| Library | Verdict |
+|---------|---------|
+| **viper** | Most popular. But: forcibly lowercases all keys (breaks YAML/JSON spec), bloated dependencies (pulls in every parser even if unused), returns references to internal maps (mutation footguns), no semantic versioning. |
+| **envconfig** | Only reads env vars. No file support. No flags. Too narrow. |
+| **ff** | Clean but minimal. No YAML support without custom parser. No nested structs. |
+| **koanf** | Modular providers (file, env, flags). Modular parsers (YAML, JSON, TOML). Dependencies are opt-in per-provider. Correct key casing. Unmarshal to typed structs. Active, well-maintained. |
+
+### Why koanf wins
+
+**Modular deps.** koanf's core has zero external dependencies. You `go get`
+only the providers and parsers you use: `koanf/providers/file`,
+`koanf/providers/env`, `koanf/parsers/yaml`. No parser you don't use ends up
+in your binary.
+
+**Correct key handling.** Viper lowercases `DATABASE_URL` to `database_url`
+and breaks round-tripping. koanf preserves keys exactly as they are in each
+source. The delimiter (`.` by default) maps nested YAML keys to flat env vars
+via a transform function — you control the mapping.
+
+**Clean merge semantics.** You load sources in order. Each `Load()` call
+merges into the existing config. Last writer wins per key. The order is
+explicit in your code, not imposed by the library.
+
+**Unmarshal to structs.** `k.Unmarshal("", &cfg)` produces a typed Go struct
+from the merged config. Fields use `koanf:"field_name"` tags. Nested structs
+map to nested YAML keys naturally.
+
+---
+
+## Design
+
+### Config Struct
+
+The config is a typed Go struct. Every field has a `koanf` tag and a comment.
+This struct IS the documentation — a developer reads it to know every
+configurable option.
+
+```go
+// config/config.go
+package config
+
+import "time"
+
+type Config struct {
+    App      AppConfig      `koanf:"app"`
+    Database DatabaseConfig `koanf:"database"`
+    Restate  RestateConfig  `koanf:"restate"`
+    OTEL     OTELConfig     `koanf:"observability"`
+    Mail     MailConfig     `koanf:"mail"`
+    Storage  StorageConfig  `koanf:"storage"`
+}
+
+type AppConfig struct {
+    Name    string `koanf:"name"`     // Application name, used in logs and OTEL resource
+    Env     string `koanf:"env"`      // development, staging, production
+    Port    int    `koanf:"port"`     // HTTP server port
+    Version string `koanf:"version"`  // Set at build time via ldflags
+}
+
+func (a AppConfig) IsProduction() bool { return a.Env == "production" }
+func (a AppConfig) IsDevelopment() bool { return a.Env == "development" }
+
+type DatabaseConfig struct {
+    DSN          string        `koanf:"dsn"`           // Postgres connection string
+    MaxOpenConns int           `koanf:"max_open_conns"` // Max open connections
+    MaxIdleConns int           `koanf:"max_idle_conns"` // Max idle connections
+    MaxLifetime  time.Duration `koanf:"max_lifetime"`   // Connection max lifetime
+    AutoMigrate  bool          `koanf:"auto_migrate"`   // Run goose up on startup
+}
+
+type RestateConfig struct {
+    IngressURL  string `koanf:"ingress_url"`  // Restate server ingress endpoint
+    ServicePort int    `koanf:"service_port"` // Port for Restate service endpoint
+    AutoStart   bool   `koanf:"auto_start"`   // Auto-start restate-server in dev
+}
+
+type OTELConfig struct {
+    Endpoint        string  `koanf:"endpoint"`          // OTLP collector endpoint
+    LogLevel        string  `koanf:"log_level"`         // debug, info, warn, error
+    TraceSampleRate float64 `koanf:"trace_sample_rate"` // 0.0 to 1.0
+    ServiceName     string  `koanf:"service_name"`      // OTEL resource service name
+}
+
+type MailConfig struct {
+    Driver   string `koanf:"driver"`    // smtp, log
+    From     string `koanf:"from"`      // Default from address
+    SMTPHost string `koanf:"smtp_host"`
+    SMTPPort int    `koanf:"smtp_port"`
+    SMTPUser string `koanf:"smtp_user"`
+    SMTPPass string `koanf:"smtp_pass"`
+}
+
+type StorageConfig struct {
+    Driver    string `koanf:"driver"`     // local, s3
+    LocalPath string `koanf:"local_path"` // Path for local storage
+    S3Bucket  string `koanf:"s3_bucket"`
+    S3Region  string `koanf:"s3_region"`
+}
+```
+
+**Reason for a concrete struct (not `k.String("app.port")` calls throughout
+the code)**: A struct is type-checked at compile time. If someone adds a field
+to the YAML but forgets to add it to the struct, `Unmarshal` ignores it — but
+the field is never used, so the developer notices. If someone removes a field
+from the struct, every caller that referenced it fails to compile. Scattered
+`k.String()` calls are stringly-typed and impossible to refactor safely.
+
+### YAML File
+
+```yaml
+# forge.yaml — project defaults (checked into version control)
+
+app:
+  name: myapp
+  env: development
+  port: 3000
+
+database:
+  dsn: "postgres://localhost/myapp_dev?sslmode=disable"
+  max_open_conns: 25
+  max_idle_conns: 5
+  max_lifetime: 5m
+  auto_migrate: true
+
+restate:
+  ingress_url: "http://localhost:8080"
+  service_port: 9080
+  auto_start: true
+
+observability:
+  endpoint: "localhost:4317"
+  log_level: debug
+  trace_sample_rate: 1.0
+  service_name: myapp
+
+mail:
+  driver: log
+  from: "noreply@myapp.local"
+
+storage:
+  driver: local
+  local_path: ./storage/app
+```
+
+**Reason for YAML over TOML or JSON**: YAML supports comments (JSON doesn't).
+YAML is more readable for nested config than TOML. Most developers in the
+web ecosystem are already familiar with YAML from Docker Compose, Kubernetes,
+and GitHub Actions. TOML is fine too — koanf supports both — but YAML is the
+default.
+
+**Reason forge.yaml is checked into version control**: It contains project
+defaults, not secrets. `database.dsn` points to `localhost` for development.
+Production overrides come from environment variables.
+
+### Environment Variables
+
+Env vars override YAML values. The mapping convention:
+
+```
+YAML path             → env var
+app.name              → FORGE_APP_NAME
+app.port              → FORGE_APP_PORT
+database.dsn          → FORGE_DATABASE_DSN
+database.auto_migrate → FORGE_DATABASE_AUTO_MIGRATE
+restate.ingress_url   → FORGE_RESTATE_INGRESS_URL
+observability.endpoint→ FORGE_OBSERVABILITY_ENDPOINT
+mail.smtp_pass        → FORGE_MAIL_SMTP_PASS
+```
+
+The transform: uppercase, replace `.` with `_`, prefix with `FORGE_`.
+
+**Reason for the `FORGE_` prefix**: Prevents collisions with other env vars.
+`PORT` is commonly set by platforms (Heroku, Cloud Run). `FORGE_APP_PORT`
+is unambiguous.
+
+**Reason env vars override YAML**: The YAML file has development defaults.
+In production, the platform sets `FORGE_DATABASE_DSN` to the real connection
+string. The developer doesn't need a separate `forge.production.yaml` — env
+vars handle environment-specific config.
+
+### CLI Flags
+
+Flags override everything, for one-off development use:
+
+```bash
+# Override port for this run
+./myapp --app.port=4000
+
+# Override log level
+./myapp --observability.log_level=debug
+
+# Override database DSN
+./myapp --database.dsn="postgres://localhost/myapp_test"
+```
+
+**Reason flags use the same dotted key paths as YAML**: No separate flag
+naming convention to learn. `--app.port=4000` maps to `app.port` in the YAML,
+which maps to `FORGE_APP_PORT` in env. One key path, three sources.
+
+**Reason flags are not the primary config mechanism**: Flags are awkward for
+12+ config values. They're useful for quick overrides during development
+(`--app.port=4000`) but not for production config. Production uses env vars.
+
+---
+
+## Loading Implementation
+
+```go
+// config/load.go
+package config
+
+import (
+    "log/slog"
+    "os"
+    "strings"
+
+    "github.com/knadh/koanf/v2"
+    "github.com/knadh/koanf/parsers/yaml"
+    "github.com/knadh/koanf/providers/env"
+    "github.com/knadh/koanf/providers/file"
+    "github.com/knadh/koanf/providers/posflag"
+    flag "github.com/spf13/pflag"
+)
+
+func Load() (*Config, error) {
+    k := koanf.New(".")
+
+    // Layer 1: Defaults (hardcoded)
+    // Embedded in the struct via zero values + explicit defaults below
+    k.Load(confmap.Provider(map[string]interface{}{
+        "app.port":                  3000,
+        "app.env":                   "development",
+        "database.max_open_conns":   25,
+        "database.max_idle_conns":   5,
+        "database.max_lifetime":     "5m",
+        "database.auto_migrate":     false,
+        "restate.service_port":      9080,
+        "observability.log_level":   "info",
+        "observability.trace_sample_rate": 0.1,
+        "mail.driver":               "log",
+        "storage.driver":            "local",
+        "storage.local_path":        "./storage/app",
+    }, "."), nil)
+
+    // Layer 2: YAML file
+    configPath := "forge.yaml"
+    if p := os.Getenv("FORGE_CONFIG"); p != "" {
+        configPath = p
+    }
+    if _, err := os.Stat(configPath); err == nil {
+        if err := k.Load(file.Provider(configPath), yaml.Parser()); err != nil {
+            return nil, fmt.Errorf("loading %s: %w", configPath, err)
+        }
+    }
+
+    // Layer 3: Environment variables
+    // FORGE_APP_PORT → app.port
+    k.Load(env.Provider("FORGE_", ".", func(s string) string {
+        return strings.Replace(
+            strings.ToLower(strings.TrimPrefix(s, "FORGE_")),
+            "_", ".", -1,
+        )
+    }), nil)
+
+    // Layer 4: CLI flags (highest precedence)
+    f := flag.NewFlagSet("forge", flag.ContinueOnError)
+    f.Int("app.port", 0, "HTTP server port")
+    f.String("app.env", "", "Environment (development, staging, production)")
+    f.String("database.dsn", "", "Database connection string")
+    f.String("observability.log_level", "", "Log level")
+    f.Bool("database.auto_migrate", false, "Run migrations on startup")
+    f.Parse(os.Args[1:])
+
+    // Only load flags that were explicitly set (not defaults)
+    k.Load(posflag.Provider(f, ".", k), nil)
+
+    // Unmarshal into typed struct
+    var cfg Config
+    if err := k.Unmarshal("", &cfg); err != nil {
+        return nil, fmt.Errorf("unmarshaling config: %w", err)
+    }
+
+    return &cfg, nil
+}
+```
+
+**Reason for four layers in this order**: Defaults provide sane values when
+nothing is configured. YAML overrides defaults with project-specific settings.
+Env vars override YAML with deployment-specific values. Flags override
+everything for ad-hoc debugging. This is the standard precedence in the
+12-factor app methodology.
+
+**Reason for `FORGE_CONFIG` env var**: Allows overriding the config file path
+for testing or alternative configurations without changing code.
+
+**Reason posflag loads only explicitly-set flags**: Without this, the default
+value of a flag (e.g., `0` for `--app.port`) would override the YAML and env
+values. koanf's `posflag.Provider` with the koanf instance as the second
+argument ensures only flags the user actually typed on the command line take
+effect.
+
+---
+
+## Usage in Application
+
+```go
+// cmd/app/main.go
+func main() {
+    cfg, err := config.Load()
+    if err != nil {
+        slog.Error("failed to load config", "err", err)
+        os.Exit(1)
+    }
+
+    db, err := forge.OpenDB(cfg.Database)
+    // cfg.Database is a typed DatabaseConfig — not a string lookup
+
+    if cfg.Database.AutoMigrate {
+        runMigrations(db)
+    }
+
+    // ...
+}
+```
+
+**No global config singleton.** The `*Config` is created in `main()` and
+passed explicitly to everything that needs it. This is the same explicit
+dependency injection pattern used for the database connection, Restate client,
+and every other dependency.
+
+---
+
+## Validation
+
+After loading and unmarshaling, validate required fields:
+
+```go
+func (c *Config) Validate() error {
+    var errs []error
+    if c.Database.DSN == "" {
+        errs = append(errs, fmt.Errorf("database.dsn is required"))
+    }
+    if c.App.Port < 1 || c.App.Port > 65535 {
+        errs = append(errs, fmt.Errorf("app.port must be between 1 and 65535"))
+    }
+    if c.Restate.IngressURL == "" {
+        errs = append(errs, fmt.Errorf("restate.ingress_url is required"))
+    }
+    return errors.Join(errs...)
+}
+```
+
+**Reason for manual validation over struct tags**: Config validation is a
+startup concern, not a request-time concern. It runs once. The rules are
+simple (non-empty, valid range). A 10-line function is clearer than struct
+tags with a validation library.
+
+---
+
+## Environment-Specific Config
+
+No multiple YAML files (`forge.dev.yaml`, `forge.prod.yaml`). The pattern is:
+
+- `forge.yaml` contains development defaults (checked in)
+- Production sets env vars: `FORGE_DATABASE_DSN`, `FORGE_APP_ENV=production`,
+  `FORGE_OBSERVABILITY_TRACE_SAMPLE_RATE=0.1`, etc.
+- Staging is the same as production with different env var values
+
+**Reason for no per-environment YAML files**: Per-environment files proliferate
+and drift. A developer adds a field to `forge.yaml` but forgets
+`forge.production.yaml`. Env vars are the standard for deployment-specific
+config in containerized environments. The YAML file is for project structure,
+not deployment configuration.
+
+---
+
+## Sensitive Values
+
+Secrets (database passwords, SMTP credentials, API keys) must come from env
+vars, never from `forge.yaml`:
+
+```yaml
+# forge.yaml — NO secrets here
+mail:
+  driver: smtp
+  smtp_host: smtp.example.com
+  smtp_port: 587
+  smtp_user: ""    # set via FORGE_MAIL_SMTP_USER
+  smtp_pass: ""    # set via FORGE_MAIL_SMTP_PASS
+```
+
+```bash
+# Production env
+export FORGE_MAIL_SMTP_USER="noreply@myapp.com"
+export FORGE_MAIL_SMTP_PASS="s3cret"
+export FORGE_DATABASE_DSN="postgres://user:pass@db.internal/myapp"
+```
+
+**Reason**: `forge.yaml` is in version control. Secrets in version control
+is a security incident. Env vars are the standard mechanism for secrets in
+Docker, Kubernetes, and every PaaS.
+
+---
+
+## Decision Log (Configuration)
+
+| # | Decision | Rationale |
+|---|----------|-----------|
+| 58 | koanf over viper | No forced lowercasing. Modular deps (only import what you use). Correct merge semantics. Active maintenance. |
+| 59 | YAML over TOML | Supports comments (unlike JSON). Familiar from Docker/K8s ecosystem. More readable for nested config. |
+| 60 | Four-layer precedence: defaults → YAML → env → flags | 12-factor app standard. YAML for project defaults. Env for deployment. Flags for debugging. |
+| 61 | `FORGE_` prefix for env vars | Prevents collisions with platform env vars like `PORT`, `DATABASE_URL`. |
+| 62 | Single `forge.yaml` (no per-environment files) | Per-environment files drift. Env vars are the standard for deployment-specific config. |
+| 63 | Typed struct, not `k.String()` calls | Compile-time type checking. Single place to see all config options. Refactor-safe. |
+| 64 | No global config singleton | Config is a value passed in `main()`. Follows the same DI pattern as every other dependency. |
+| 65 | Manual validation over struct tags | Startup-time concern. Simple rules. 10-line function is clearer than a validation framework. |
+| 66 | Secrets only via env vars | YAML is in version control. Secrets in VCS is a security incident. |

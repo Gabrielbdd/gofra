@@ -27,6 +27,10 @@ When editing docs, keep these commands consistent with `docs/14-tooling.md` and 
 
 Write docs as framework design, not feature notes. Be direct, opinionated, and specific about defaults, tradeoffs, and developer workflow. Prefer concrete examples such as `app/services/`, `forge generate service`, and port numbers. Cross-link related docs and record durable architectural choices in `docs/17-decision-log.md`.
 
+If a change advances or completes a tracked readiness item, update
+`docs/18-readiness-checklist.md` in the same change so the checklist reflects
+current progress.
+
 ## Testing & Validation Expectations
 
 Use `docs/16-testing.md` as the source of truth for the framework’s testing model: unit tests, Connect handler tests, and `integration`-tagged Restate tests. When proposing new behavior, document how it should be tested and whether it affects generators, runtime behavior, or local developer ergonomics.
@@ -34,5 +38,8 @@ Use `docs/16-testing.md` as the source of truth for the framework’s testing mo
 ## Commit & Pull Request Guidelines
 
 Follow the existing Conventional Commit style, for example `docs: initial docs`. Use clear prefixes such as `docs:`, `feat:`, `fix:`, and `chore:`.
+
+Commit after every discrete change set requested by the user. Do not batch
+multiple finished doc changes into one later commit.
 
 Pull requests should explain the framework decision being changed, list affected docs, and call out any impact on generated code, developer workflow, or architecture. If a PR changes commands, ports, project layout, or framework defaults, update the relevant documentation in the same change.

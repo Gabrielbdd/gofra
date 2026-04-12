@@ -14,6 +14,9 @@ binary plus required infrastructure.
 This documentation is the complete engineering design for Forge. It records
 every architectural decision with its rationale. It is structured for both
 human engineers reading sequentially and AI agents searching for specific topics.
+The final document, [V1 Readiness Checklist](18-readiness-checklist.md),
+defines which promises are in scope for a credible v1 release and which claims
+must be softened or deferred until the framework actually solves them.
 
 ### Document Map
 
@@ -36,6 +39,7 @@ human engineers reading sequentially and AI agents searching for specific topics
 | 15 | [Development Environment — Docker Compose](15-docker-compose.md) | Postgres, Restate, Zitadel, Jaeger setup, port map, network topology. |
 | 16 | [Testing](16-testing.md) | Connect handler tests, Restate integration tests, RestateRecorder, factories. |
 | 17 | [Decision Log](17-decision-log.md) | All 123 numbered decisions with rationale, organized by subsystem. |
+| 18 | [V1 Readiness Checklist](18-readiness-checklist.md) | The promises worth keeping for v1, release blockers, ship gates, and deferred scope. |
 
 ### Technology Stack Summary
 
@@ -60,6 +64,7 @@ Each document is self-contained. To find information about a specific topic:
 - **How are errors returned to the frontend?** → `09-errors.md`
 - **What's the shutdown sequence?** → `12-graceful-shutdown.md`
 - **Why was X chosen over Y?** → `17-decision-log.md` (search by topic)
+- **What is actually in scope for v1?** → `18-readiness-checklist.md`
 - **What's the full project directory structure?** → `02-system-architecture.md`
 - **What proto conventions are followed?** → `03-api-layer.md`
 

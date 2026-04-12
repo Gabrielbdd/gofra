@@ -1,0 +1,230 @@
+# 18 — V1 Readiness Checklist
+
+> Parent: [Index](00-index.md) | Prev: [Decision Log](17-decision-log.md)
+>
+> This document defines which promises Forge should keep for v1, which claims
+> should be softened or removed, and what must be true before calling the
+> framework usable in production.
+
+---
+
+## Why This Document Exists
+
+Forge's design docs are broad. That is useful during exploration, but it is not
+enough for a v1 release. A usable framework needs a smaller set of promises
+that are actually solved end to end.
+
+This checklist is the scope authority for v1:
+
+- If another doc promises more than this checklist, the checklist wins for v1.
+- If two docs conflict, use this checklist to decide which contract to keep.
+- A feature is not "part of Forge v1" because it appears in an example. It is
+  part of v1 only if this document keeps it and the supporting docs make it
+  operationally credible.
+
+---
+
+## V1 Promises Worth Keeping
+
+Forge v1 should keep these promises and solve them fully:
+
+- Forge is an API-first Go framework built around Connect RPC, PostgreSQL,
+  Restate, Zitadel, and a default React SPA.
+- API contracts are defined in `proto/` and generate both Go server types and
+  TypeScript client types.
+- Durable background work and long-running workflows are first-class through
+  Restate, with clear handler patterns and operational visibility.
+- Authentication is delegated to Zitadel. Authorization is enforced in Forge.
+- Production deployment is one application binary plus required infrastructure,
+  with documented health checks, shutdown, configuration, and observability.
+- Local development is reproducible with pinned tools, one default workflow,
+  and minimal manual guesswork.
+
+These are strong enough to differentiate the framework and narrow enough to
+implement coherently.
+
+---
+
+## Promises To Soften Or Drop For V1
+
+Forge v1 should not promise the following until they are actually solved:
+
+- End-to-end exactly-once behavior for mutating requests.
+- Multi-tenant application data isolation by default.
+- A framework-owned ORM or query builder.
+- Multiple first-class auth/session models for the SPA.
+- Fine-grained external policy engines as part of the core architecture.
+- "Batteries included" coverage for every adjacent subsystem such as uploads,
+  rate limiting, search backends, or webhook ecosystems.
+
+These may still appear as extension points or future work, but they should not
+be part of the v1 product claim.
+
+---
+
+## Release-Critical Checklist
+
+The following items are release blockers for a credible v1.
+
+### 1. One Coherent Architecture Contract
+
+- [ ] Standardize the docs on `Connect + sqlc + Restate + Zitadel + React SPA`.
+- [ ] Remove stale references to the old query builder, ORM language,
+  server-side templating, and obsolete workflow examples.
+- [ ] Make generated-code examples match the kept architecture exactly.
+- [ ] Ensure the project structure, handler examples, and test examples all use
+  the same package layout and dependency story.
+
+**Why this is release-critical**: Forge is still documentation-first. If the
+docs disagree, the framework contract itself is unstable.
+
+### 2. One Auth Model
+
+- [ ] Choose one SPA auth default and document it precisely.
+- [ ] Define token storage, refresh behavior, logout behavior, and route
+  protection rules.
+- [ ] Add the missing canonical config for auth to the main config document.
+- [ ] Define which endpoints are public, which require authentication, and how
+  admin access flows through the backend to Zitadel.
+
+**Why this is release-critical**: auth is not a plugin in Forge's story. It is
+one of the framework's core opinions.
+
+### 3. Real Idempotency Semantics
+
+- [ ] Replace vague `request_id` claims with an explicit mutation strategy.
+- [ ] Define how database writes and Restate dispatch compose safely.
+- [ ] State clearly whether Forge provides deduplication, exactly-once effects,
+  at-least-once delivery, or only idempotency hooks.
+- [ ] Add tests and examples that cover client retries, duplicate submission,
+  and crash windows between DB mutation and durable dispatch.
+
+**Why this is release-critical**: mutation safety is part of the framework
+promise. Hand-waving here becomes data corruption later.
+
+### 4. Explicit Tenancy Decision
+
+- [ ] Decide whether Forge v1 is single-tenant or multi-tenant by default.
+- [ ] If single-tenant, remove multi-tenant positioning from the product story.
+- [ ] If multi-tenant, define tenant keys, query scoping, authz boundaries,
+  uniqueness rules, and test coverage for isolation.
+
+**Why this is release-critical**: Zitadel organizations do not automatically
+create safe application-level tenant isolation.
+
+### 5. Request-Layer To Restate Boundary
+
+- [ ] Preserve request context when dispatching to Restate.
+- [ ] Preserve trace context and cancellation semantics.
+- [ ] Define when dispatch errors fail the request versus being logged and
+  retried elsewhere.
+- [ ] Make helper APIs use the same error-handling and context rules as the raw
+  ingress client.
+
+**Why this is release-critical**: the Connect-to-Restate bridge is one of the
+framework's main differentiators. It must be correct, not just convenient.
+
+### 6. Truthful Startup And Shutdown Semantics
+
+- [ ] Make startup readiness reflect real listener bind success and dependency
+  readiness.
+- [ ] Define the precise contract for health endpoints and shutdown drains.
+- [ ] Document how Restate endpoint lifecycle interacts with application
+  readiness and rolling deploys.
+
+**Why this is release-critical**: broken lifecycle semantics produce bad
+rollouts even when the application code is correct.
+
+### 7. Production Security Baseline
+
+- [ ] Add webhook signature verification and replay-protection guidance.
+- [ ] Decide whether rate limiting is in scope for v1. If yes, define it. If
+  not, remove implied claims.
+- [ ] Define the minimal secret-handling, TLS, and admin-credential guidance
+  needed for real deployments.
+
+**Why this is release-critical**: these are common failure points for modern web
+applications and they sit in Forge's claimed area of responsibility.
+
+### 8. Reproducible Tooling And Local Workflow
+
+- [ ] Pin tool versions and container images instead of relying on `latest`.
+- [ ] Make the local Restate registration story use one correct endpoint.
+- [ ] Keep `mise`, generators, Docker Compose, and config examples in sync.
+
+**Why this is release-critical**: "works on a clean machine" is a baseline
+requirement for framework usability.
+
+### 9. Operational Baseline
+
+- [ ] Define the minimum logs, traces, metrics, and alerts required in
+  production.
+- [ ] Add runbooks for migrations, rollout, rollback, backup/restore, and
+  durable job failure inspection.
+- [ ] State what Forge expects the operator to provide versus what the framework
+  provides directly.
+
+**Why this is release-critical**: operational clarity is part of the framework's
+value proposition, not an afterthought.
+
+### 10. Test Matrix For The Promises Kept
+
+- [ ] Keep unit tests, Connect handler tests, and Restate integration tests.
+- [ ] Add tests for auth refresh/logout, idempotency, async failure handling,
+  workflow compensation, and migration safety.
+- [ ] If multi-tenancy is kept, add tenancy isolation tests before release.
+
+**Why this is release-critical**: Forge should only promise behavior it can
+verify repeatedly.
+
+---
+
+## Suggested Order Of Work
+
+Do the work in this order:
+
+1. Stabilize the docs contract around one architecture.
+2. Choose and document the auth model.
+3. Choose and document the tenancy scope.
+4. Solve idempotency and DB plus Restate composition.
+5. Fix config, health, and shutdown semantics.
+6. Lock down tooling reproducibility.
+7. Add production security and ops guidance.
+8. Expand the test matrix to cover the promises that remain.
+
+This order is deliberate. It avoids building helper code on top of unresolved
+contracts.
+
+---
+
+## Ship Gate
+
+Forge v1 is not ready to ship until all of the following are true:
+
+- [ ] A new application can be scaffolded and run locally without undocumented
+  decisions.
+- [ ] The documentation describes one coherent framework, not multiple
+  competing designs.
+- [ ] Auth works end to end with one documented refresh and logout story.
+- [ ] A duplicate client mutation behaves deterministically.
+- [ ] A durable workflow can succeed, retry, fail terminally, and be inspected
+  operationally.
+- [ ] Production deployment has a credible runbook for startup, migration,
+  shutdown, rollback, and failure inspection.
+
+If one of these is false, the framework is still in design or pre-release
+hardening, not "usable".
+
+---
+
+## Deferred Until After V1
+
+These are reasonable follow-up tracks once the core contract is stable:
+
+- Runtime-configurable permission models.
+- First-class multi-tenant application primitives, if not included in v1.
+- Richer admin tooling around Zitadel.
+- Additional frontend templates or alternate frontend stacks.
+- Optional integrations for search engines, object storage, and policy engines.
+
+The right v1 is smaller and more coherent than the maximal design space.

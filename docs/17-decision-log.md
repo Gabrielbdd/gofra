@@ -1,6 +1,6 @@
 # 17 — Decision Log
 
-> Parent: [Index](00-index.md) | Prev: [Testing](16-testing.md)
+> Parent: [Index](00-index.md) | Prev: [Testing](16-testing.md) | Next: [V1 Readiness Checklist](18-readiness-checklist.md)
 >
 > This is the complete list of all architectural decisions. Each decision has
 > a number, a short description, and a rationale. Search this document to

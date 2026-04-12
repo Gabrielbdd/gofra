@@ -99,7 +99,7 @@
 | # | Decision | Rationale | Doc |
 |---|----------|-----------|-----|
 | 67 | Couple with Zitadel for identity | Go-native, Connect RPC API, single binary, multi-tenant, OIDC certified. | [08](08-auth.md) |
-| 68 | OIDC Authorization Code + PKCE for SPA | Standard for public clients. No client_secret in browser. | [08](08-auth.md) |
+| 68 | Direct OIDC Authorization Code flow for browser and native clients | One auth family across human clients. Browser uses PKCE as a public client. Native clients use PKCE with platform redirects. | [08](08-auth.md) |
 | 69 | Stateless JWT validation via JWKS | No per-request call to Zitadel. Keys cached and auto-rotated. | [08](08-auth.md) |
 | 70 | OIDC discovery + local JWT verification for access tokens | Uses Zitadel discovery metadata and cached JWKS keys. | [08](08-auth.md) |
 | 71 | Roles in Zitadel, permissions in Go | Clean separation. Zitadel manages assignment, app defines meaning. | [08](08-auth.md) |
@@ -108,7 +108,7 @@
 | 74 | JIT user profile creation | No sync. Profile created on first API call. | [08](08-auth.md) |
 | 75 | `zitadel_user_id TEXT` as PK | Zitadel IDs are opaque strings. Direct PK avoids surrogate. | [08](08-auth.md) |
 | 76 | Admin handlers proxy to Zitadel | SPA doesn't get admin credentials. Forge enforces authz. | [08](08-auth.md) |
-| 77 | Access token in memory, not localStorage | XSS protection. Refresh via refresh_token. | [08](08-auth.md) |
+| 77 | No BFF/session-cookie default for browser clients | Keep the v1 surface smaller and backend validation consistent. Revisit later if needed. | [08](08-auth.md) |
 | 78 | `urn:zitadel:iam:org:projects:roles` scope | Includes roles in token. No extra API call. | [08](08-auth.md) |
 | 79 | Frontend permission checks display-only | Server always re-checks. Never trust the client. | [08](08-auth.md) |
 

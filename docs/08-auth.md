@@ -19,6 +19,25 @@ user is allowed to perform a specific action on a specific resource. This
 is the line: **Zitadel answers "who is this person?" Forge answers "can this
 person do this thing?"**
 
+### V1 Client Auth Model
+
+Forge v1 standardizes on one auth family for all human-operated clients:
+direct OpenID Connect Authorization Code flow against Zitadel. The browser
+SPA uses Authorization Code + PKCE as a public client. Native mobile and
+desktop clients use the same Authorization Code + PKCE pattern with
+platform-native redirect handling and OS-managed secure storage.
+
+Forge does **not** introduce a backend-for-frontend (BFF) session layer for
+the default web client in v1. Browser clients authenticate directly with
+Zitadel and call Forge with bearer access tokens. This keeps the browser,
+mobile, and desktop stories aligned on one protocol family and one backend
+validation path while the framework contract is still being stabilized.
+
+This is an explicit v1 simplification, not a statement that a BFF is never
+useful. If Forge later needs a stronger default web posture around token
+handling, that can be revisited as a new architectural decision instead of
+remaining ambiguous in the docs.
+
 ### Why Zitadel specifically
 
 **Protocol alignment.** Zitadel's v2 API speaks Connect RPC — the same
@@ -150,10 +169,10 @@ an immutable event), user metadata, service accounts for machine-to-machine.
 7. Zitadel returns:
    - access_token (JWT, short-lived, ~15min)
    - id_token (user identity claims)
-   - refresh_token (long-lived, for silent refresh)
+   - refresh_token (long-lived, rotating, for token renewal)
 
-8. SPA stores access_token in memory (not localStorage)
-   SPA stores refresh_token in memory (or secure cookie)
+8. SPA manages the returned token set in frontend-controlled storage
+   (Forge v1 does not convert this into a backend session cookie)
 
 9. SPA sends API requests with:
    Authorization: Bearer <access_token>
@@ -168,10 +187,12 @@ include the user's project roles in the token claims. Without this scope, the
 token contains identity but no role information, and the API would need a
 separate call to Zitadel to fetch roles.
 
-**Reason access_token is stored in memory, not localStorage**: localStorage
-is accessible to any JavaScript on the page (XSS risk). In-memory storage is
-lost on page reload, but the SPA silently refreshes using the refresh_token.
-This is the recommended pattern for SPAs.
+**Reason Forge does not use a BFF/session-cookie layer for the browser by
+default**: Forge is choosing one direct OIDC code-flow architecture across
+browser, mobile, and desktop clients for v1. That reduces framework surface
+area while the rest of the auth model is still being hardened. The exact
+browser token storage, refresh lifecycle, and logout contract remain tracked
+in the readiness checklist.
 
 ### Token Validation in the AuthInterceptor
 
@@ -615,7 +636,7 @@ function is the seam where a policy engine can be plugged in.
 | # | Decision | Rationale |
 |---|----------|-----------|
 | 67 | Couple with Zitadel for identity | Go-native, Connect RPC API, single binary, multi-tenant native, OIDC certified. Eliminates thousands of lines of security-critical code. |
-| 68 | OIDC Authorization Code + PKCE for SPA | Standard for public clients. Prevents code interception. No client_secret in the browser. |
+| 68 | Direct OIDC Authorization Code flow for browser and native clients | One auth family across human clients. Browser uses PKCE as a public client. Native clients use PKCE with platform redirect handling. |
 | 69 | Stateless JWT validation via JWKS | No per-request call to Zitadel. Fast. Keys cached and auto-rotated. |
 | 70 | OIDC discovery + local JWT verification for access tokens | Uses Zitadel discovery metadata and cached JWKS keys. Verifies bearer access tokens locally. |
 | 71 | Roles in Zitadel, permissions in Go | Zitadel manages role assignment. Application defines what roles mean (permissions). Clean separation. |
@@ -624,6 +645,6 @@ function is the seam where a policy engine can be plugged in.
 | 74 | JIT user profile creation | No sync between Zitadel and Forge. Profile created on first API call. No webhooks, no eventual consistency. |
 | 75 | `zitadel_user_id TEXT` as PK | Zitadel IDs are opaque strings. Direct PK avoids surrogate key and simplifies joins. |
 | 76 | Admin handlers proxy to Zitadel via service account | SPA doesn't get admin Zitadel credentials. Forge enforces authz before forwarding. |
-| 77 | Access token in memory, not localStorage | XSS protection. Refresh via refresh_token on page reload. |
+| 77 | No BFF/session-cookie default for browser clients | Keep the v1 surface smaller and backend auth validation consistent across browser, mobile, and desktop. Revisit later if needed. |
 | 78 | `urn:zitadel:iam:org:projects:roles` scope | Includes roles in the token. No extra API call to fetch roles on every request. |
 | 79 | Frontend permission checks are display-only | UI shows/hides buttons. Server always re-checks. Never trust the client. |

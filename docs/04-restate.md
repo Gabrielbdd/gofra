@@ -121,29 +121,33 @@ Restate Server in development.
 myapp/
 ├── cmd/app/main.go              # Boots HTTP + Restate endpoint
 ├── forge.yaml                   # Framework config
+├── sqlc.yaml                    # sqlc configuration
 ├── .env
 │
 ├── app/
 │   ├── rpc/                     # Connect RPC service implementations
 │   │   ├── posts_service.go
 │   │   ├── auth_service.go
-│   │   └── users_service.go
+│   │   ├── users_service.go
+│   │   └── converters.go        # sqlc rows -> proto messages
 │   │
 │   ├── http/                    # Plain HTTP handlers for webhooks/callbacks
 │   │   └── payment_webhook.go
 │   │
-│   ├── models/                  # Domain models + query helpers
+│   ├── models/                  # Optional domain helpers, not the query layer
 │   │   ├── user.go
 │   │   └── post.go
 │   │
+│   ├── authz/
+│   │   └── permissions.go
+│   │
 │   ├── services/                # Restate Services (durable background work)
 │   │   ├── mail_service.go      # Sends emails durably
-│   │   ├── search_service.go    # Updates search indexes
+│   │   ├── search_indexer.go    # Updates search indexes
 │   │   └── webhook_service.go   # Delivers webhooks with retry
 │   │
 │   ├── objects/                 # Restate Virtual Objects (stateful entities)
 │   │   ├── notification_feed.go # Per-user notification state
-│   │   ├── rate_limiter.go      # Per-key rate limiting
 │   │   └── scheduler.go         # Cron job scheduler
 │   │
 │   ├── workflows/               # Restate Workflows (multi-step processes)
@@ -163,6 +167,8 @@ myapp/
 │
 ├── db/
 │   ├── migrations/
+│   ├── queries/
+│   ├── sqlc/
 │   ├── seeds/
 │   └── factories/
 │
@@ -178,8 +184,8 @@ myapp/
 ```
 
 **Key convention**: `services/`, `objects/`, `workflows/` use the Restate SDK
-directly. Everything else is normal Go. The folder name tells you what Restate
-primitive it uses.
+directly. Database access still goes through sqlc-generated queries. The folder
+name tells you which Restate primitive owns the durable logic.
 
 ---
 
@@ -189,49 +195,44 @@ primitive it uses.
 // cmd/app/main.go
 package main
 
-import (
-    "myapp/app/rpc"
-    "myapp/app/services"
-    "myapp/app/objects"
-    "myapp/app/workflows"
-    "myapp/config"
-
-    "github.com/myapp/forge"
-)
+// imports omitted for brevity
 
 func main() {
-    app := forge.New()
+    ctx := context.Background()
+    cfg, _ := config.Load()
+    db, _ := forge.OpenDB(cfg.Database)
+    queries := sqlc.New(db)
+    restateClient := forge.NewRestateClient(cfg.Restate.IngressURL)
 
-    // Load config from .env + forge.yaml
-    app.LoadConfig()
+    mux := chi.NewRouter()
+    interceptors := connect.WithInterceptors(
+        forge.OTELInterceptor(),
+        protovalidate.NewInterceptor(),
+        forge.AuthInterceptor(cfg.Auth),
+    )
 
-    // Setup database (queries, migrations check)
-    app.SetupDB()
+    postsPath, postsHandler := postsv1connect.NewPostsServiceHandler(
+        &rpc.PostsService{Queries: queries, Restate: restateClient},
+        interceptors,
+    )
+    mux.Mount(postsPath, postsHandler)
 
-    // Register HTTP routes + Connect handlers
-    app.HTTP(config.Routes)
-
-    // Register Restate services — all in one place
-    app.Restate(func(r *forge.Restate) {
-        // Services (stateless durable handlers)
-        r.Service(services.MailService{})
-        r.Service(services.SearchIndexer{})
-        r.Service(services.WebhookDelivery{})
-
-        // Virtual Objects (stateful, keyed)
-        r.Object(objects.NotificationFeed{})
-        r.Object(objects.Scheduler{})
-
-        // Workflows (exactly-once, multi-step)
-        r.Workflow(workflows.OrderCheckout{})
-        r.Workflow(workflows.PayoutApproval{})
+    forge.Serve(ctx, forge.ServeConfig{
+        HTTPHandler: mux,
+        HTTPAddr:    fmt.Sprintf(":%d", cfg.App.Port),
+        RestateAddr: fmt.Sprintf(":%d", cfg.Restate.ServicePort),
+        RestateSetup: func() (*server.Restate, error) {
+            rs := server.NewRestate()
+            rs.Bind(restate.Reflect(services.MailService{Queries: queries}))
+            rs.Bind(restate.Reflect(services.SearchIndexer{Queries: queries}))
+            rs.Bind(restate.Reflect(services.WebhookDelivery{Queries: queries}))
+            rs.Bind(restate.Reflect(objects.NotificationFeed{}))
+            rs.Bind(restate.Reflect(objects.Scheduler{}))
+            rs.Bind(restate.Reflect(workflows.OrderCheckout{Queries: queries}))
+            rs.Bind(restate.Reflect(workflows.PayoutApproval{Queries: queries}))
+            return rs, nil
+        },
     })
-
-    // Start everything
-    //   - HTTP server on :3000
-    //   - Restate service endpoint on :9080
-    //   - In dev: auto-starts Restate Server, auto-registers services
-    app.Start()
 }
 ```
 
@@ -298,13 +299,15 @@ func (s *PostsService) CreatePost(
         return nil, err
     }
 
-    if err := s.restate.Service("SearchIndexer", "IndexPost").Send(
+    if err := s.Restate.Service("SearchIndexer", "IndexPost").Send(
+        ctx,
         services.IndexPostRequest{PostID: post.ID},
     ); err != nil {
         return nil, err
     }
 
-    if err := s.restate.Object("NotificationFeed", fmt.Sprint(post.AuthorID), "Send").Send(
+    if err := s.Restate.Object("NotificationFeed", fmt.Sprint(post.AuthorID), "Send").Send(
+        ctx,
         objects.NotifyRequest{
             Title:   "Post published",
             Body:    post.Title,
@@ -314,11 +317,11 @@ func (s *PostsService) CreatePost(
         return nil, err
     }
 
-    return connect.NewResponse(post.ToProto()), nil
+    return connect.NewResponse(postToProto(post)), nil
 }
 ```
 
-`c.Restate()` returns a thin wrapper around the Restate ingress client,
+The injected `RestateClient` is a thin wrapper around the Restate ingress client,
 pre-configured with the Restate server URL from `forge.yaml`. It provides:
 
 ```go
@@ -332,7 +335,7 @@ func (r *RestateClient) Object(name, key, handler string) *ObjectSender
 func (r *RestateClient) Workflow(name, key, handler string) *WorkflowSender
 
 // Each sender has:
-func (s *Sender) Send(payload any, opts ...restate.CallOption) error
+func (s *Sender) Send(ctx context.Context, payload any, opts ...restate.CallOption) error
 func (s *Sender) Request(ctx context.Context, payload any) ([]byte, error) // wait for response
 ```
 
@@ -404,7 +407,7 @@ func (s *PostsService) CreatePost(
     // Async: durable delivery via Restate
     s.events.Dispatch("post.created", PostCreatedPayload{...})
 
-    return connect.NewResponse(post.ToProto()), nil
+    return connect.NewResponse(postToProto(post)), nil
 }
 ```
 
@@ -486,18 +489,20 @@ func (NotificationFeed) MarkRead(ctx restate.ObjectContext) error {
 
 ```go
 // Send notification
-c.Restate().Object("NotificationFeed", userID, "Send").Send(NotifyRequest{
+if err := s.Restate.Object("NotificationFeed", userID, "Send").Send(ctx, NotifyRequest{
     Title:   "New comment on your post",
-    Body:    comment.Body[:100],
+    Body:    preview,
     Channel: "all",
-})
+}); err != nil {
+    return nil, err
+}
 
 // Read notification count for an API badge endpoint
 func (s *NotificationsService) GetUnreadCount(
     ctx context.Context,
     req *connect.Request[notificationsv1.GetUnreadCountRequest],
 ) (*connect.Response[notificationsv1.GetUnreadCountResponse], error) {
-    count, err := forge.RestateRequest[int](ctx, s.restate, "NotificationFeed", req.Msg.UserId, "GetUnreadCount", nil)
+    count, err := forge.RestateRequest[int](ctx, s.Restate, "NotificationFeed", req.Msg.UserId, "GetUnreadCount", nil)
     if err != nil {
         count = 0 // graceful degradation
     }
@@ -712,11 +717,6 @@ The glue between Forge's request layer and Restate is minimal. RPC services and
 plain HTTP handlers both use the same pre-configured ingress client:
 
 ```go
-// forge/context.go
-func (c *Context) Restate() *RestateClient {
-    return c.app.restateClient // initialized once at boot from forge.yaml
-}
-
 // forge/restate_client.go
 type RestateClient struct {
     client *restateingress.Client
@@ -745,8 +745,7 @@ type Sender struct {
     client *restateingress.Client
 }
 
-func (s *Sender) Send(payload any, opts ...restate.CallOption) error {
-    ctx := context.Background()
+func (s *Sender) Send(ctx context.Context, payload any, opts ...restate.CallOption) error {
     switch s.kind {
     case "service":
         _, err := restateingress.ServiceSend[any](s.client, s.name, s.handler).
@@ -765,7 +764,9 @@ func (s *Sender) Send(payload any, opts ...restate.CallOption) error {
 }
 ```
 
-That's it. ~60 lines of glue code. No framework magic.
+RPC services and plain HTTP handlers both receive the same `*RestateClient`
+instance from `main()`. That's it. A thin wrapper for dependency injection, no
+framework-owned queue abstraction.
 
 ---
 
@@ -890,33 +891,32 @@ func (OrderCheckout) Run(ctx restate.WorkflowContext, req OrderCheckoutRequest) 
 
 ## Testing
 
-### Testing API Handlers (unchanged from original design)
+### Testing API Handlers
 
 ```go
-func TestCreatePost(t *testing.T) {
-    app := forge.TestApp(t)
-    user := factory.Create[User](app.DB)
+func TestListPosts(t *testing.T) {
+    db := forge.TestDB(t)
+    factory.CreateMany[models.Post](db, 5)
 
-    // Restate calls are captured, not executed
-    app.FakeRestate()
+    recorder := forge.NewRestateRecorder()
+    svc := &rpc.PostsService{Queries: sqlc.New(db), Restate: recorder}
 
-    resp := app.ActingAs(user).
-        PostJSON("/api/v1/posts", map[string]any{
-            "title": "My Post",
-            "body":  "Hello world",
-        })
+    _, handler := postsv1connect.NewPostsServiceHandler(svc)
+    srv := httptest.NewServer(handler)
+    defer srv.Close()
 
-    resp.AssertStatus(201)
-    app.AssertDatabaseHas("posts", map[string]any{"title": "My Post"})
+    client := postsv1connect.NewPostsServiceClient(http.DefaultClient, srv.URL)
+    resp, err := client.ListPosts(context.Background(),
+        connect.NewRequest(&postsv1.ListPostsRequest{PageSize: 10}),
+    )
 
-    // Assert the right Restate messages were sent
-    app.AssertRestateSent("SearchIndexer", "IndexPost")
-    app.AssertRestateSent("MailService", "Send")
+    require.NoError(t, err)
+    assert.Len(t, resp.Msg.Posts, 5)
 }
 ```
 
-`app.FakeRestate()` replaces the Restate ingress client with one that captures
-all messages instead of sending them. Like Laravel's `Queue::fake()`.
+`RestateRecorder` captures durable dispatches for assertions without starting a
+real Restate server.
 
 ### Testing Restate Handlers (durable logic)
 
@@ -944,24 +944,27 @@ Tests are slower (Docker) but test real durable execution behavior.
 ### Testing Workflows
 
 ```go
-func TestUserSignupWorkflow(t *testing.T) {
-    env := restatetest.Start(t, restate.Reflect(workflows.UserSignup{}))
+func TestOrderCheckoutWorkflow(t *testing.T) {
+    env := restatetest.Start(t, restate.Reflect(workflows.OrderCheckout{}))
     client := env.Ingress()
 
     // Start the workflow (async)
-    handle, err := restateingress.WorkflowSend[workflows.SignupRequest](
-        client, "UserSignup", "user-42", "Run",
-    ).Send(t.Context(), workflows.SignupRequest{
-        UserID: 42,
-        Email:  "alice@example.com",
+    handle, err := restateingress.WorkflowSend[workflows.CheckoutRequest](
+        client, "OrderCheckout", "order-42", "Run",
+    ).Send(t.Context(), workflows.CheckoutRequest{
+        OrderID:    42,
+        PaymentRef: "pay_ref_123",
     })
     require.NoError(t, err)
 
-    // Simulate user clicking verification link
-    time.Sleep(100 * time.Millisecond) // let workflow reach the promise
-    _, err = restateingress.Workflow[string, restate.Void](
-        client, "UserSignup", "user-42", "VerifyEmail",
-    ).Request(t.Context(), "the-expected-token")
+    // Simulate the provider webhook confirming the charge
+    time.Sleep(100 * time.Millisecond)
+    _, err = restateingress.Workflow[workflows.PaymentResult, restate.Void](
+        client, "OrderCheckout", "order-42", "ConfirmPayment",
+    ).Request(t.Context(), workflows.PaymentResult{
+        Succeeded:  true,
+        ProviderID: "ch_123",
+    })
     require.NoError(t, err)
 
     // Wait for workflow completion
@@ -993,9 +996,9 @@ $ forge dev
   │    ✓ WebhookDelivery       (Service)         │
   │    ✓ NotificationFeed      (Virtual Object)  │
   │    ✓ Scheduler             (Virtual Object)  │
-  │    ✓ UserSignup            (Workflow)        │
-  │    ✓ PasswordReset         (Workflow)        │
   │    ✓ OrderCheckout         (Workflow)        │
+  │    ✓ PayoutApproval        (Workflow)        │
+  │    ✓ ReportExport          (Workflow)        │
   │                                              │
   │  Schedules:                                  │
   │    ✓ cleanup  0 2 * * *  → CleanupService    │

@@ -176,7 +176,7 @@ For Forge, we adopt a simplified version:
 - Support common operators: `=`, `!=`, `>`, `<`, `>=`, `<=`
 - Support `IN`: `status IN ["draft", "published"]`
 - Pass the filter string to the handler, which parses and applies it to the
-  query builder
+  generated query layer
 
 The filter string is a `string filter` field on the List request. The server
 is responsible for parsing and validating it. Invalid filters return
@@ -244,15 +244,14 @@ service PostsService {
 }
 ```
 
-This aligns with what we already designed in the ORM layer.
+This aligns with the database layer's soft-delete conventions.
 
 ---
 
 ### AIP-155: Request Identification (request_id)
 
-**Adopt.** Add `string request_id` to mutating requests. The server uses it
-for idempotency — if the same `request_id` is sent twice, the second request
-returns the same result without re-executing.
+**Adopt.** Add `string request_id` to mutating requests. It is the client-
+supplied idempotency key for that mutation attempt.
 
 ```protobuf
 message CreatePostRequest {
@@ -261,9 +260,10 @@ message CreatePostRequest {
 }
 ```
 
-This maps perfectly to Restate's idempotency key feature. When the Connect
-handler dispatches durable work to Restate, it can pass `request_id` as the
-idempotency key.
+The framework can forward `request_id` to Restate when dispatching durable
+work. The exact end-to-end mutation semantics for database writes remain a
+framework design responsibility and should not be overstated in the API
+contract alone.
 
 ---
 
@@ -505,7 +505,7 @@ message CreatePostRequest {
   string title = 1 [(buf.validate.field).string = {min_len: 1, max_len: 255}];
   string body = 2 [(buf.validate.field).string.min_len = 10];
   repeated string tags = 3;
-  string request_id = 4;                              // AIP-155 (idempotency)
+  string request_id = 4;                              // AIP-155 (client-supplied idempotency key)
   bool validate_only = 5;                             // AIP-163
 }
 
@@ -554,9 +554,10 @@ The AIP patterns compose with our existing architecture:
 
 1. **Proto defines the API** with AIP naming, pagination, filtering, field masks
 2. **buf generates** Go Connect stubs + TypeScript clients
-3. **Connect handler** implements the generated interface, uses the query builder
-   for database access
-4. **request_id maps to Restate idempotency key** when dispatching durable work
+3. **Connect handler** implements the generated interface and uses sqlc-
+   generated queries for database access
+4. **request_id may be forwarded to Restate idempotency keys** when dispatching
+   durable work
 5. **validate_only** is checked early in the handler — run validation, return
    result without persisting
 6. **etag** is computed from `update_time` or a hash — checked in the handler

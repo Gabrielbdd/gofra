@@ -262,13 +262,14 @@ func (h *HealthChecker) ReadinessHandler() http.HandlerFunc {
 ```go
 // cmd/app/main.go
 func main() {
-    cfg := config.Load()
+    cfg, _ := config.Load()
 
     // OTEL setup
     otelShutdown := setupOTEL(cfg)
 
     // Database
     db, _ := forge.OpenDB(cfg.Database)
+    queries := sqlc.New(db)
 
     // Health
     health := forge.NewHealthChecker(db, cfg.Restate.IngressURL)
@@ -285,8 +286,9 @@ func main() {
     // Restate setup (deferred — starts inside Serve)
     restateSetup := func() (*server.Restate, error) {
         rs := server.NewRestate()
-        rs.Bind(restate.Reflect(services.MailService{DB: db}))
-        rs.Bind(restate.Reflect(workflows.UserSignup{DB: db}))
+        rs.Bind(restate.Reflect(services.MailService{Queries: queries}))
+        rs.Bind(restate.Reflect(services.SearchIndexer{Queries: queries}))
+        rs.Bind(restate.Reflect(workflows.OrderCheckout{Queries: queries}))
         return rs, nil
     }
 

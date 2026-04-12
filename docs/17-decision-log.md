@@ -18,7 +18,7 @@
 | 4 | AIP conventions | Consistent naming, pagination, errors. Enforced by linting. | [03](03-api-layer.md) |
 | 5 | `{action}_time` fields | AIP-148. `create_time` not `created_at`. One convention. | [03](03-api-layer.md) |
 | 6 | Pagination on all List methods | AIP-158. Adding later is breaking. `page_token` is opaque. | [03](03-api-layer.md) |
-| 7 | `request_id` for idempotency | AIP-155. Maps to Restate idempotency key. E2E exactly-once. | [03](03-api-layer.md) |
+| 7 | `request_id` for idempotency | AIP-155. Client-supplied idempotency key. Forwarded to durable work where applicable. | [03](03-api-layer.md) |
 | 8 | `FieldMask` on Update | AIP-161. Prevents overwrite with proto zero values. | [03](03-api-layer.md) |
 | 9 | `validate_only` on mutations | AIP-163. Enables frontend dry-run validation. | [03](03-api-layer.md) |
 | 10 | Soft delete with `delete_time` | AIP-164. Undelete via custom method. | [03](03-api-layer.md) |
@@ -30,7 +30,7 @@
 | 16 | Workflows for long-running business flows | Suspend on Durable Promise. Resume on external callback or user action. | [04](04-restate.md) |
 | 17 | Postgres for domain data | Complex queries, joins, FTS. Restate K/V for operational state. | [05](05-database.md) |
 | 18 | Explicit DI via struct fields | No service container. No globals. | [01](01-foundations.md) |
-| 19 | Explicit `ToProto()`/`FromProto()` conversion | Model ≠ API message. Two types, two concerns. | [02](02-system-architecture.md) |
+| 19 | Explicit conversion functions between DB rows and API messages | Database structs and proto messages serve different concerns. Keep the mapping explicit. | [02](02-system-architecture.md) |
 | 20 | chi router | `net/http` compatible. Connect handlers mount directly. | [02](02-system-architecture.md) |
 | 21 | SQL migrations (plain SQL) | SQL is the schema language. No DSL translation layer. | [05](05-database.md) |
 | 22 | React + TanStack + shadcn | Largest ecosystem. Connect-Query for E2E type safety. | [13](13-frontend.md) |

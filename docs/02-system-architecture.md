@@ -182,7 +182,7 @@ and produce Go files with correct imports — something a shell task cannot do w
 │  │                                                      │  │
 │  │   Services:   MailService, SearchIndexer             │  │
 │  │   Objects:    NotificationFeed, Scheduler            │  │
-│  │   Workflows:  UserSignup, OrderCheckout              │  │
+│  │   Workflows:  OrderCheckout, PayoutApproval          │  │
 │  └──────────────────────────────────────────────────────┘  │
 └────────────────────────────────────────────────────────────┘
          │                          │
@@ -216,7 +216,8 @@ myapp/
 ├── mise.toml                    # Tool versions + task definitions
 ├── buf.yaml                     # buf module config (proto deps, lint rules)
 ├── buf.gen.yaml                 # buf code generation config
-├── forge.yaml                   # Runtime config (DB, Restate, mail, storage)
+├── forge.yaml                   # Runtime config
+├── sqlc.yaml                    # sqlc configuration
 ├── .env                         # Environment-specific secrets
 │
 ├── proto/                       # API contract (single source of truth)
@@ -224,25 +225,29 @@ myapp/
 │       ├── posts/v1/
 │       │   └── posts.proto      # PostsService + Post message
 │       ├── auth/v1/
-│       │   └── auth.proto       # AuthService + session messages
+│       │   └── auth.proto       # AuthService + auth-related messages
 │       └── users/v1/
 │           └── users.proto      # UsersService + User message
 │
-├── gen/                         # Generated Go code (from proto)
+├── gen/                         # Generated Go code from proto
 │   └── myapp/posts/v1/
 │       ├── posts.pb.go          # Go message types
 │       └── postsv1connect/
 │           └── posts.connect.go # Connect RPC server interface + client
 │
 ├── app/                         # Application code
-│   ├── rpc/                     # Connect RPC handler implementations
-│   │   ├── posts_service.go     # implements PostsServiceHandler
+│   ├── rpc/                     # Connect RPC handlers
+│   │   ├── posts_service.go
 │   │   ├── auth_service.go
-│   │   └── users_service.go
+│   │   ├── users_service.go
+│   │   └── converters.go        # sqlc rows -> proto messages
 │   │
-│   ├── models/                  # Domain models (DB structs + query logic)
+│   ├── models/                  # Optional domain helpers, not the query layer
 │   │   ├── user.go
 │   │   └── post.go
+│   │
+│   ├── authz/                   # Role -> permission mapping
+│   │   └── permissions.go
 │   │
 │   ├── services/                # Restate Services (durable background work)
 │   │   ├── mail_service.go
@@ -253,13 +258,20 @@ myapp/
 │   │   └── scheduler.go
 │   │
 │   └── workflows/               # Restate Workflows (multi-step processes)
-│       ├── approval_flow.go
+│       ├── payout_approval.go
 │       └── order_checkout.go
 │
 ├── db/
-│   ├── migrations/              # SQL migration files (up/down)
+│   ├── migrations/              # goose SQL migrations
+│   ├── queries/                 # Hand-written SQL query files
+│   ├── sqlc/                    # Generated Go DB code
 │   ├── seeds/                   # Seed data
 │   └── factories/               # Model factories for testing
+│
+├── config/
+│   ├── config.go                # Typed runtime config
+│   ├── routes.go                # Plain HTTP routes (webhooks, health, SPA)
+│   └── events.go                # Durable event listener map
 │
 ├── web/                         # Frontend SPA (standalone Vite project)
 │   ├── package.json
@@ -267,11 +279,11 @@ myapp/
 │   ├── index.html
 │   ├── src/
 │   │   ├── main.tsx
-│   │   ├── routes/              # TanStack Router file-based routes
-│   │   ├── components/          # shadcn/ui components
+│   │   ├── routes/
+│   │   ├── components/
 │   │   ├── lib/
-│   │   │   └── transport.ts     # Connect transport config
-│   │   └── gen/                 # Generated TypeScript (from proto)
+│   │   │   └── transport.ts
+│   │   └── gen/                 # Generated TypeScript from proto
 │   │       └── myapp/posts/v1/
 │   │           ├── posts_pb.ts
 │   │           └── posts-PostsService_connectquery.ts
@@ -515,8 +527,8 @@ ensures compile-time verification.
 
 ```go
 type PostsService struct {
-    DB      *forge.DB
-    Restate *restateingress.Client
+    Queries *sqlc.Queries
+    Restate *forge.RestateClient
 }
 
 var _ postsv1connect.PostsServiceHandler = (*PostsService)(nil)
@@ -525,63 +537,73 @@ func (s *PostsService) ListPosts(
     ctx context.Context,
     req *connect.Request[postsv1.ListPostsRequest],
 ) (*connect.Response[postsv1.ListPostsResponse], error) {
-    q := query.From[models.Post](s.DB)
-    if req.Msg.Filter != "" {
-        q = applyFilter(q, req.Msg.Filter)
-    }
-    if !req.Msg.ShowDeleted {
-        q = q.WhereNull("delete_time")
+    pageSize := int32(25)
+    if req.Msg.PageSize > 0 {
+        pageSize = min(req.Msg.PageSize, 100)
     }
 
-    result, err := q.OrderBy(req.Msg.OrderBy).
-        Paginate(req.Msg.PageToken, int(req.Msg.PageSize))
+    rows, err := s.Queries.ListPosts(ctx, sqlc.ListPostsParams{
+        ShowDeleted: req.Msg.ShowDeleted,
+        PageSize:    pageSize + 1,
+        PageOffset:  decodePageToken(req.Msg.PageToken),
+        Status:      parseStatusFilter(req.Msg.Filter),
+    })
     if err != nil {
         return nil, connect.NewError(connect.CodeInternal, err)
     }
 
-    posts := make([]*postsv1.Post, len(result.Items))
-    for i, p := range result.Items {
-        posts[i] = p.ToProto()
+    hasNext := len(rows) > int(pageSize)
+    if hasNext {
+        rows = rows[:pageSize]
+    }
+
+    posts := make([]*postsv1.Post, len(rows))
+    for i, row := range rows {
+        posts[i] = listPostRowToProto(row)
+    }
+
+    nextToken := ""
+    if hasNext {
+        nextToken = encodePageToken(decodePageToken(req.Msg.PageToken) + pageSize)
     }
 
     return connect.NewResponse(&postsv1.ListPostsResponse{
         Posts:         posts,
-        NextPageToken: result.NextToken,
-        TotalSize:     int32(result.Total),
+        NextPageToken: nextToken,
     }), nil
 }
 ```
 
-**Reason for explicit `*forge.DB` field**: No global database accessor. The
-handler receives its database connection through its struct field, set in
-`main()`. This is testable (swap the DB in tests) and traceable (read `main.go`
-to see what connects to what).
+**Reason for explicit `*sqlc.Queries` field**: No global database accessor and
+no framework-owned query layer. The handler receives typed generated queries
+through its struct field, set in `main()`. This is testable and traceable.
 
-**Reason for `ToProto()` method on models**: Domain models (database structs)
-are separate from proto messages (API structs). The conversion is explicit Go
-code, not reflection or struct tag mapping. Two types for two concerns: the
-model matches the database schema, the proto message matches the API contract.
-They evolve independently.
+**Reason for explicit conversion functions**: sqlc row structs and proto
+messages are different types with different concerns. Converting them in
+`app/rpc/converters.go` keeps the generated database code untouched and makes
+the API mapping explicit.
 
 ### HTTP Mux Assembly
 
 ```go
 func main() {
-    cfg := config.Load()
+    cfg, _ := config.Load()
     db, _ := forge.OpenDB(cfg.Database)
-    restateClient := restateingress.NewClient(cfg.Restate.IngressURL)
+    queries := sqlc.New(db)
+    restateClient := forge.NewRestateClient(cfg.Restate.IngressURL)
 
     mux := chi.NewRouter()
     mux.Use(middleware.Logger, middleware.Recovery, middleware.RequestID)
-    mux.Use(middleware.CORS(cfg.CORS))
+    mux.Use(forge.CORSMiddleware(cfg.CORS))
 
     interceptors := connect.WithInterceptors(
+        forge.OTELInterceptor(),
         protovalidate.NewInterceptor(),
-        forge.AuthInterceptor(db),
+        forge.AuthInterceptor(cfg.Auth),
     )
 
     postsPath, postsHandler := postsv1connect.NewPostsServiceHandler(
-        &rpc.PostsService{DB: db, Restate: restateClient},
+        &rpc.PostsService{Queries: queries, Restate: restateClient},
         interceptors,
     )
     mux.Mount(postsPath, postsHandler)
@@ -595,10 +617,19 @@ func main() {
 
     // Restate endpoint
     restateEndpoint := server.NewRestate()
-    restateEndpoint.Bind(restate.Reflect(services.MailService{DB: db}))
-    restateEndpoint.Bind(restate.Reflect(workflows.UserSignup{DB: db}))
+    restateEndpoint.Bind(restate.Reflect(services.MailService{Queries: queries}))
+    restateEndpoint.Bind(restate.Reflect(services.SearchIndexer{Queries: queries}))
+    restateEndpoint.Bind(restate.Reflect(workflows.OrderCheckout{Queries: queries}))
+    restateEndpoint.Bind(restate.Reflect(workflows.PayoutApproval{Queries: queries}))
 
-    forge.Serve(ctx, mux, ":3000", restateEndpoint, ":9080")
+    forge.Serve(ctx, forge.ServeConfig{
+        HTTPHandler: mux,
+        HTTPAddr:    fmt.Sprintf(":%d", cfg.App.Port),
+        RestateAddr: fmt.Sprintf(":%d", cfg.Restate.ServicePort),
+        RestateSetup: func() (*server.Restate, error) {
+            return restateEndpoint, nil
+        },
+    })
 }
 ```
 
@@ -635,13 +666,13 @@ need the typed message. Using interceptors means the auth logic can inspect
 
 | Subsystem | Reason it stays |
 |---|---|
-| Query builder + models | Postgres is the source of truth for domain data. Restate K/V is for operational state. |
+| sqlc queries + converters | Postgres is the source of truth for domain data. SQL stays explicit. API mapping stays in Go code. |
 | Migrations + seeds | Schema management is a database concern. |
 | File storage (local/S3) | Orthogonal to execution durability. |
 | Cache (memory/Redis) | Response-level caching. HTTP performance concern. |
 | HTTP client | For external API calls. Wrapped in `restate.Run()` when inside durable handlers. |
 | Full-text search (Postgres FTS) | Query-time concern. Not an execution concern. |
-| Auth (session/token) | HTTP-layer identity. Connect interceptors. |
+| Authentication + authorization | Identity and permissions are enforced at the request layer. |
 
 ### How Handlers Use Restate
 
@@ -688,22 +719,24 @@ func (s *PostsService) CreatePost(
     // ... create post in DB ...
 
     // Durable fire-and-forget: guaranteed delivery + guaranteed execution
-    restateingress.ServiceSend[IndexRequest](
-        s.Restate, "SearchIndexer", "Index",
-    ).Send(ctx, IndexRequest{PostID: post.ID},
+    if err := s.Restate.Service("SearchIndexer", "Index").Send(
+        ctx,
+        IndexRequest{PostID: post.ID},
         restate.WithIdempotencyKey(req.Msg.RequestId), // AIP-155 → Restate idempotency
-    )
+    ); err != nil {
+        return nil, connect.NewError(connect.CodeUnavailable, err)
+    }
 
-    return connect.NewResponse(post.ToProto()), nil
+    return connect.NewResponse(postToProto(post)), nil
 }
 ```
 
 **Reason for passing `request_id` as idempotency key**: The client's `request_id`
-(AIP-155) flows through to Restate's idempotency system. If the Connect
-handler crashes after inserting the post but before dispatching the search
-index job, the client retries with the same `request_id`, the DB insert is
-idempotent (primary key conflict), and the Restate dispatch is deduplicated by
-the idempotency key. End-to-end exactly-once from browser to durable execution.
+(AIP-155) can be forwarded to Restate's idempotency system for durable
+dispatches. This prevents duplicate Restate sends for the same client request.
+The full mutation contract for database writes must still be designed
+explicitly; the framework should not imply stronger guarantees than it
+implements.
 
 ---
 
@@ -742,30 +775,27 @@ subscriber discovery. No event bus.
 
 ## 10. Database Layer
 
-### Query Builder
+### sqlc Queries
 
 ```go
-func From[T any](db *forge.DB) *Builder[T]
-func Find[T any](db *forge.DB, id int64) (T, error)
-func Insert[T any](db *forge.DB, record *T) error
-func Update[T any](db *forge.DB, record *T) error
-func Delete[T any](db *forge.DB, record *T) error
-func Query[T any](db *forge.DB, sql string, args ...any) ([]T, error)
+queries := sqlc.New(db)
+post, err := queries.GetPostByID(ctx, 42)
+rows, err := queries.ListPosts(ctx, sqlc.ListPostsParams{
+    ShowDeleted: false,
+    PageSize:    25,
+    PageOffset:  0,
+})
 ```
 
-**Reason for `*forge.DB` as explicit parameter**: No implicit database
-connection. Every query shows where its data comes from. This is testable
-(pass a test DB) and auditable (grep for `s.DB` to find all database access
-in a handler).
+**Reason for generated queries over a framework query builder**: The SQL lives
+in `db/queries/*.sql`, the schema lives in `db/migrations/*.sql`, and sqlc
+generates typed Go methods from both. There is one source of truth and no
+framework-owned query DSL to keep coherent.
 
-**Reason for generics**: `From[Post](db)` returns a `*Builder[Post]`. Terminal
-methods return `(Post, error)` or `([]Post, error)`. The type parameter
-eliminates casting and provides IDE autocompletion on the result.
-
-**Reason for raw SQL escape hatch**: The query builder covers 80% of queries.
-The remaining 20% (complex joins, aggregations, CTEs) should be written in
-SQL directly, not tortured through a builder API that generates worse SQL than
-a human would write.
+**Reason for explicit SQL**: complex joins, filters, and pagination rules are a
+normal part of application development. SQL is already the language Postgres
+executes. Forge should standardize on typed generated queries rather than hide
+SQL behind a custom abstraction.
 
 ### Migrations
 
@@ -929,7 +959,7 @@ func TestListPosts(t *testing.T) {
     factory.CreateMany[models.Post](db, 5)
 
     recorder := forge.NewRestateRecorder()
-    svc := &rpc.PostsService{DB: db, Restate: recorder}
+    svc := &rpc.PostsService{Queries: sqlc.New(db), Restate: recorder}
 
     _, handler := postsv1connect.NewPostsServiceHandler(svc)
     srv := httptest.NewServer(handler)
@@ -959,7 +989,7 @@ recorder captures `ServiceSend` / `ObjectSend` calls for assertions.
 ```go
 func TestMailService(t *testing.T) {
     db := forge.TestDB(t)
-    svc := services.MailService{DB: db, Mailer: mailertest.New()}
+    svc := services.MailService{Queries: sqlc.New(db), Mailer: mailertest.New()}
 
     env := restatetest.Start(t, restate.Reflect(svc))
     client := env.Ingress()
@@ -1046,7 +1076,7 @@ will retry them on the next available instance. No data is lost.
 | 4 | AIP conventions | Consistent naming, pagination, errors. Enforced by linting. |
 | 5 | `{action}_time` fields | AIP-148. `create_time` not `created_at`. One convention, no ambiguity. |
 | 6 | Pagination on all List methods | AIP-158. Adding later is breaking. `page_token` is opaque. |
-| 7 | `request_id` for idempotency | AIP-155. Maps directly to Restate idempotency key. E2E exactly-once. |
+| 7 | `request_id` for idempotency | AIP-155. Client-supplied idempotency key. Forwarded to durable work where applicable. |
 | 8 | `FieldMask` on Update | AIP-161. Prevents accidental overwrite with proto zero values. |
 | 9 | `validate_only` on mutations | AIP-163. Free to implement. Enables frontend dry-run. |
 | 10 | Soft delete with `delete_time` | AIP-164. Consistent with other `_time` fields. Undelete via custom method. |
@@ -1058,7 +1088,7 @@ will retry them on the next available instance. No data is lost.
 | 16 | Workflows for long-running business flows | Checkout, approvals, external callbacks. Suspend on Durable Promise. |
 | 17 | Postgres for domain data | Complex queries, joins, FTS. Restate K/V for operational state. |
 | 18 | Explicit DI via struct fields | No service container. No globals. Read `main.go` to trace everything. |
-| 19 | `ToProto()`/`FromProto()` | Explicit conversion. Model ≠ API message. Two types, two concerns. |
+| 19 | Explicit conversion functions between DB rows and API messages | Database structs and proto messages serve different concerns. Keep the mapping explicit. |
 | 20 | chi router | `net/http` compatible. Connect handlers mount directly. |
 | 21 | SQL migrations | SQL is the schema language. No DSL translation layer. |
 | 22 | React + TanStack + shadcn | Largest ecosystem. Connect-Query gives E2E type safety from proto. |

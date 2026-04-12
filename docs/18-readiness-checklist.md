@@ -68,15 +68,19 @@ The following items are release blockers for a credible v1.
 
 ### 1. One Coherent Architecture Contract
 
-- [ ] Standardize the docs on `Connect + sqlc + Restate + Zitadel + React SPA`.
-- [ ] Remove stale references to the old query builder, ORM language,
+- [x] Standardize the docs on `Connect + sqlc + Restate + Zitadel + React SPA`.
+- [x] Remove stale references to the old query builder, ORM language,
   server-side templating, and obsolete workflow examples.
-- [ ] Make generated-code examples match the kept architecture exactly.
-- [ ] Ensure the project structure, handler examples, and test examples all use
+- [x] Make generated-code examples match the kept architecture exactly.
+- [x] Ensure the project structure, handler examples, and test examples all use
   the same package layout and dependency story.
 
 **Why this is release-critical**: Forge is still documentation-first. If the
 docs disagree, the framework contract itself is unstable.
+
+**Progress**: Completed by the architecture-alignment pass that normalized the
+core system, API, Restate, database, shutdown, and decision-log docs on the
+same `Connect + sqlc + Restate + Zitadel + React SPA` contract.
 
 ### 2. One Auth Model
 
@@ -101,6 +105,10 @@ one of the framework's core opinions.
 
 **Why this is release-critical**: mutation safety is part of the framework
 promise. Hand-waving here becomes data corruption later.
+
+**Progress**: Core docs no longer promise end-to-end exactly-once behavior, but
+the actual mutation and deduplication strategy is still undefined. This entire
+section remains open.
 
 ### 4. Explicit Tenancy Decision
 

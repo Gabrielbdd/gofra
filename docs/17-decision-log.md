@@ -94,7 +94,7 @@
 | 65 | Manual validation over struct tags | Startup-time concern. Simple rules. 10-line function. | [06](06-configuration.md) |
 | 66 | Secrets only via env vars | YAML is in version control. Secrets in VCS = security incident. | [06](06-configuration.md) |
 
-## Auth & Authz (Decisions #67–79)
+## Auth & Authz (Decisions #67–79, #124–129)
 
 | # | Decision | Rationale | Doc |
 |---|----------|-----------|-----|
@@ -111,6 +111,12 @@
 | 77 | No BFF/session-cookie default for browser clients | Keep the v1 surface smaller and backend validation consistent. Revisit later if needed. | [08](08-auth.md) |
 | 78 | `urn:zitadel:iam:org:projects:roles` scope | Includes roles in token. No extra API call. | [08](08-auth.md) |
 | 79 | Frontend permission checks display-only | Server always re-checks. Never trust the client. | [08](08-auth.md) |
+| 124 | `react-oidc-context` as the default React auth layer | One supported frontend integration for the generated SPA. Avoids multiple auth stacks in docs and generators. | [08](08-auth.md) |
+| 125 | `sessionStorage` for browser token storage | Survives normal reloads without persisting as broadly as `localStorage`. | [08](08-auth.md) |
+| 126 | `offline_access` + rotating refresh tokens with one bootstrap refresh attempt | Keeps the browser session usable without hidden retry loops or full redirects on every expiry. | [08](08-auth.md) |
+| 127 | Logout clears local auth state before Zitadel end-session redirect | Fail closed if network logout is interrupted. | [08](08-auth.md) |
+| 128 | Routes and RPCs private by default | Public routes and RPCs must be explicitly allowlisted. | [08](08-auth.md) |
+| 129 | Native clients use system browser redirects and OS secure storage | Same OIDC family as the browser, with platform-native token handling. | [08](08-auth.md) |
 
 ## CORS (Decisions #80–87)
 
@@ -118,8 +124,8 @@
 |---|----------|-----------|-----|
 | 80 | `connectrpc.com/cors` for header lists | Official package. Tracks protocol changes. | [10](10-cors.md) |
 | 81 | `rs/cors` for middleware | Most widely used. Standard `net/http` middleware. | [10](10-cors.md) |
-| 82 | `AllowCredentials: true` | SPA sends Bearer JWT. Requires exact origin matching. | [10](10-cors.md) |
-| 83 | No wildcard origins | Incompatible with credentials. Security hole in production. | [10](10-cors.md) |
+| 82 | `AllowCredentials: false` for the default bearer-token SPA flow | Browser auth uses `Authorization` headers, not cookies. Preflight still happens, but credential mode is not required. | [10](10-cors.md) |
+| 83 | Explicit origins even without cookie auth | Bearer-token CORS can technically use `*`, but Forge keeps an explicit allowlist for a clearer browser contract. | [10](10-cors.md) |
 | 84 | Explicit allowed origins in config | Framework adds localhost:5173 in dev automatically. | [10](10-cors.md) |
 | 85 | CORS middleware first in chain | Preflight OPTIONS must be handled before routing. | [10](10-cors.md) |
 | 86 | `MaxAge: 7200` | Chrome's maximum. Reduces preflight requests. | [10](10-cors.md) |

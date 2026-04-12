@@ -38,6 +38,46 @@ useful. If Forge later needs a stronger default web posture around token
 handling, that can be revisited as a new architectural decision instead of
 remaining ambiguous in the docs.
 
+### Browser SPA Defaults
+
+Forge keeps the browser contract narrow and explicit:
+
+- `react-oidc-context` is the default React integration layer.
+- The browser token set lives in `sessionStorage`.
+- The SPA requests `offline_access` and uses rotating refresh tokens.
+- On app bootstrap, the SPA restores auth state from `sessionStorage` and
+  attempts one token refresh if the access token is expired.
+- If bootstrap refresh fails, the SPA clears auth state and treats the user as
+  signed out.
+- Logout clears browser auth state first and then redirects through Zitadel's
+  end-session flow.
+- Forge does not promise cross-device or "log out everywhere" behavior in v1.
+
+**Reason for `sessionStorage`**: it survives a normal page reload, which keeps
+the browser UX usable, but it does not persist across full browser restarts the
+way `localStorage` does. Forge is choosing the simpler v1 tradeoff between
+reload ergonomics and limiting token persistence.
+
+**Reason for refresh tokens in the browser**: without a BFF, the SPA needs a
+renewal path that does not force a full redirect loop every time the access
+token expires. Forge standardizes on rotating refresh tokens rather than
+multiple competing browser renewal patterns.
+
+**Reason for one bootstrap refresh attempt**: auth startup should be
+deterministic. One refresh attempt covers the normal "token expired while the
+tab was closed" case without hiding retry loops inside framework scaffolding.
+
+### Native Client Defaults
+
+Forge uses the same OIDC code-flow family for native clients, but the storage
+and redirect mechanics are platform-native:
+
+- Native apps use the system browser for login.
+- Redirects use a custom URI scheme or loopback callback.
+- Tokens live in OS-managed secure storage such as Keychain, Keystore, or the
+  platform credential manager.
+- Embedded webviews are not the Forge default.
+
 ### Why Zitadel specifically
 
 **Protocol alignment.** Zitadel's v2 API speaks Connect RPC — the same
@@ -171,11 +211,20 @@ an immutable event), user metadata, service accounts for machine-to-machine.
    - id_token (user identity claims)
    - refresh_token (long-lived, rotating, for token renewal)
 
-8. SPA manages the returned token set in frontend-controlled storage
-   (Forge v1 does not convert this into a backend session cookie)
+8. SPA stores the token set in sessionStorage
 
-9. SPA sends API requests with:
+9. On app bootstrap or page reload:
+   - restore the stored token set
+   - if access_token is expired and refresh_token exists, attempt one refresh
+   - if refresh fails, clear auth state and require login
+
+10. SPA sends API requests with:
    Authorization: Bearer <access_token>
+
+11. User clicks "Logout"
+
+12. SPA clears local auth state, then redirects through Zitadel's
+    end-session endpoint, then returns to the application root
 ```
 
 **Reason for PKCE**: The SPA is a public client (no client_secret). PKCE
@@ -187,12 +236,15 @@ include the user's project roles in the token claims. Without this scope, the
 token contains identity but no role information, and the API would need a
 separate call to Zitadel to fetch roles.
 
-**Reason Forge does not use a BFF/session-cookie layer for the browser by
-default**: Forge is choosing one direct OIDC code-flow architecture across
-browser, mobile, and desktop clients for v1. That reduces framework surface
-area while the rest of the auth model is still being hardened. The exact
-browser token storage, refresh lifecycle, and logout contract remain tracked
-in the readiness checklist.
+**Reason for `offline_access` in the SPA scope**: Forge's direct-browser
+contract depends on refresh tokens for normal session continuity. Without
+`offline_access`, the browser would need a full authorization redirect whenever
+the access token expired.
+
+**Reason logout clears local state before network logout**: the application
+should fail closed. If the browser clears auth state first, an interrupted
+redirect to Zitadel does not leave the local app believing the user is still
+signed in.
 
 ### Token Validation in the AuthInterceptor
 
@@ -258,6 +310,30 @@ per request.
 locally using Zitadel's public keys (fetched once and cached via JWKS). No
 network call to Zitadel per request. This is fast and doesn't create a
 dependency on Zitadel availability for every API call.
+
+### Public RPCs vs Protected RPCs
+
+Forge treats Connect RPCs as private by default. Public RPCs are an explicit
+allowlist:
+
+```go
+var publicRPCs = map[string]struct{}{
+    "/blog.v1.PublicPostsService/ListPosts": {},
+    "/blog.v1.PublicPostsService/GetPost":   {},
+}
+
+func isPublicRPC(procedure string) bool {
+    _, ok := publicRPCs[procedure]
+    return ok
+}
+```
+
+Everything not in this allowlist requires a valid access token. Health checks
+are plain HTTP endpoints outside the Connect auth interceptor.
+
+Admin RPCs are never public. They require normal user authentication plus
+application permission checks, and only then does Forge call Zitadel's
+management APIs using a service account.
 
 ---
 
@@ -514,7 +590,7 @@ credentials.
 | **Instance** | One per deployment (dev, staging, prod) |
 | **Organization** | One per tenant (B2C: single org for all users. B2B: one org per customer) |
 | **Project** | One per Forge application (contains the app's roles) |
-| **Application** | Two: one PKCE app for the SPA, one JWT-profile app for the service account |
+| **Application** | Three: one User Agent app for the browser SPA, one Native app for mobile/desktop, one JWT-profile app for the service account |
 | **Roles** | Application-level roles: `admin`, `editor`, `viewer`, etc. |
 | **User Grants** | Assigns a user to a role within the project |
 | **Actions** | Optional: custom claims injection (e.g., add org metadata to tokens) |
@@ -548,10 +624,18 @@ services:
 # forge.yaml
 auth:
   issuer: "http://localhost:8080"
-  client_id: "${ZITADEL_CLIENT_ID}"
-  project_id: "${ZITADEL_PROJECT_ID}"
-
-  # Service account for admin operations (user management, role assignment)
+  audience: "myapp-api"
+  client_id: "${ZITADEL_BROWSER_CLIENT_ID}"
+  scopes:
+    - openid
+    - profile
+    - email
+    - offline_access
+    - urn:zitadel:iam:org:projects:roles
+  redirect_path: "/auth/callback"
+  post_logout_redirect_path: "/"
+  browser_token_store: session_storage
+  use_refresh_tokens: true
   service_account:
     key_path: "${ZITADEL_SERVICE_ACCOUNT_KEY}"
 ```
@@ -562,33 +646,73 @@ auth:
 
 ### Auth Library
 
-The SPA uses `@zitadel/react` or plain `oidc-client-ts` (standard OIDC
-client for JavaScript):
+The default React integration is `react-oidc-context`, which wraps
+`oidc-client-ts` without forcing Forge to invent its own client-side auth
+abstraction:
 
 ```tsx
 // web/src/lib/auth.ts
-import { UserManager } from "oidc-client-ts";
+import { AuthProvider } from "react-oidc-context";
+import { WebStorageStateStore } from "oidc-client-ts";
 
-export const userManager = new UserManager({
+export const oidcConfig = {
   authority: import.meta.env.VITE_ZITADEL_ISSUER,
   client_id: import.meta.env.VITE_ZITADEL_CLIENT_ID,
-  redirect_uri: `${window.location.origin}/callback`,
+  redirect_uri: `${window.location.origin}/auth/callback`,
   post_logout_redirect_uri: window.location.origin,
-  scope: "openid profile email urn:zitadel:iam:org:projects:roles",
+  scope: "openid profile email offline_access urn:zitadel:iam:org:projects:roles",
   response_type: "code",
-});
+  userStore: new WebStorageStateStore({ store: window.sessionStorage }),
+};
+
+export function AppAuthProvider({ children }) {
+  return <AuthProvider {...oidcConfig}>{children}</AuthProvider>;
+}
 ```
+
+**Reason for `react-oidc-context`**: Forge ships a React SPA by default. The
+framework should standardize on one React-friendly OIDC integration instead of
+describing multiple incompatible frontend auth layers.
 
 ### Protecting Routes
 
 ```tsx
-// web/src/routes/__root.tsx
-function AuthGuard({ children }) {
-  const user = useAuth();
-  if (!user) return <RedirectToLogin />;
+const PUBLIC_ROUTES = new Set([
+  "/",
+  "/login",
+  "/auth/callback",
+]);
+
+function RequireAuth({ children }) {
+  const auth = useAuth();
+  const location = useLocation();
+
+  if (PUBLIC_ROUTES.has(location.pathname)) return children;
+  if (auth.isLoading) return <FullPageSpinner />;
+  if (!auth.isAuthenticated) {
+    void auth.signinRedirect({ state: { returnTo: location.pathname } });
+    return null;
+  }
+
   return children;
 }
 ```
+
+Forge keeps the route model explicit:
+
+- `/`, `/login`, and `/auth/callback` are public routes.
+- Application routes under `/app` require authentication.
+- Admin screens are protected routes plus permission checks such as
+  `user.manage`.
+
+### Refresh And Logout
+
+- On app startup, restore auth state from `sessionStorage`.
+- If the access token is expired and a refresh token exists, attempt one token
+  renewal.
+- If renewal fails, clear auth state and present signed-out UI.
+- On logout, clear local auth state first, then redirect through Zitadel's
+  end-session flow, then return to `/`.
 
 ### Using Roles in the UI
 
@@ -648,3 +772,9 @@ function is the seam where a policy engine can be plugged in.
 | 77 | No BFF/session-cookie default for browser clients | Keep the v1 surface smaller and backend auth validation consistent across browser, mobile, and desktop. Revisit later if needed. |
 | 78 | `urn:zitadel:iam:org:projects:roles` scope | Includes roles in the token. No extra API call to fetch roles on every request. |
 | 79 | Frontend permission checks are display-only | UI shows/hides buttons. Server always re-checks. Never trust the client. |
+| 124 | `react-oidc-context` as the default React auth layer | One supported frontend integration for the generated SPA. Avoids multiple auth stacks in docs and generators. |
+| 125 | `sessionStorage` for browser token storage | Survives normal reloads without persisting as broadly as `localStorage`. |
+| 126 | `offline_access` + rotating refresh tokens, with one refresh attempt on bootstrap | Keeps the browser session usable without hidden retry loops or full redirects on every expiry. |
+| 127 | Logout clears local auth state before Zitadel end-session redirect | Fail closed if network logout is interrupted. |
+| 128 | Routes and RPCs are private by default | Public routes and RPCs must be explicitly allowlisted. |
+| 129 | Native clients use system browser redirects and OS secure storage | Same OIDC family as the browser, but with platform-native token handling. |

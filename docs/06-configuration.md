@@ -76,6 +76,7 @@ type Config struct {
     App      AppConfig      `koanf:"app"`
     Database DatabaseConfig `koanf:"database"`
     Restate  RestateConfig  `koanf:"restate"`
+    Auth     AuthConfig     `koanf:"auth"`
     OTEL     OTELConfig     `koanf:"observability"`
     Mail     MailConfig     `koanf:"mail"`
     Storage  StorageConfig  `koanf:"storage"`
@@ -103,6 +104,22 @@ type RestateConfig struct {
     IngressURL  string `koanf:"ingress_url"`  // Restate server ingress endpoint
     ServicePort int    `koanf:"service_port"` // Port for Restate service endpoint
     AutoStart   bool   `koanf:"auto_start"`   // Auto-start restate-server in dev
+}
+
+type AuthConfig struct {
+    Issuer                 string                    `koanf:"issuer"`                    // Zitadel issuer URL
+    Audience               string                    `koanf:"audience"`                  // Expected access token audience
+    ClientID               string                    `koanf:"client_id"`                 // Browser SPA OIDC client ID
+    Scopes                 []string                  `koanf:"scopes"`                    // OIDC scopes requested by browser clients
+    RedirectPath           string                    `koanf:"redirect_path"`             // Browser callback path
+    PostLogoutRedirectPath string                    `koanf:"post_logout_redirect_path"` // Browser logout return path
+    BrowserTokenStore      string                    `koanf:"browser_token_store"`       // session_storage
+    UseRefreshTokens       bool                      `koanf:"use_refresh_tokens"`        // Request offline_access and rotating refresh tokens
+    ServiceAccount         AuthServiceAccountConfig  `koanf:"service_account"`           // Zitadel management API credentials
+}
+
+type AuthServiceAccountConfig struct {
+    KeyPath string `koanf:"key_path"` // Path to Zitadel JWT-profile service account key
 }
 
 type OTELConfig struct {
@@ -158,6 +175,23 @@ restate:
   service_port: 9080
   auto_start: true
 
+auth:
+  issuer: "http://localhost:8080"
+  audience: "myapp-api"
+  client_id: "${ZITADEL_BROWSER_CLIENT_ID}"
+  scopes:
+    - openid
+    - profile
+    - email
+    - offline_access
+    - urn:zitadel:iam:org:projects:roles
+  redirect_path: "/auth/callback"
+  post_logout_redirect_path: "/"
+  browser_token_store: session_storage
+  use_refresh_tokens: true
+  service_account:
+    key_path: "${ZITADEL_SERVICE_ACCOUNT_KEY}"
+
 observability:
   endpoint: "localhost:4317"
   log_level: debug
@@ -194,6 +228,9 @@ app.port              → FORGE_APP_PORT
 database.dsn          → FORGE_DATABASE_DSN
 database.auto_migrate → FORGE_DATABASE_AUTO_MIGRATE
 restate.ingress_url   → FORGE_RESTATE_INGRESS_URL
+auth.issuer           → FORGE_AUTH_ISSUER
+auth.client_id        → FORGE_AUTH_CLIENT_ID
+auth.redirect_path    → FORGE_AUTH_REDIRECT_PATH
 observability.endpoint→ FORGE_OBSERVABILITY_ENDPOINT
 mail.smtp_pass        → FORGE_MAIL_SMTP_PASS
 ```
@@ -266,6 +303,17 @@ func Load() (*Config, error) {
         "database.max_lifetime":     "5m",
         "database.auto_migrate":     false,
         "restate.service_port":      9080,
+        "auth.redirect_path":        "/auth/callback",
+        "auth.post_logout_redirect_path": "/",
+        "auth.browser_token_store":  "session_storage",
+        "auth.use_refresh_tokens":   true,
+        "auth.scopes": []string{
+            "openid",
+            "profile",
+            "email",
+            "offline_access",
+            "urn:zitadel:iam:org:projects:roles",
+        },
         "observability.log_level":   "info",
         "observability.trace_sample_rate": 0.1,
         "mail.driver":               "log",
@@ -298,6 +346,8 @@ func Load() (*Config, error) {
     f.Int("app.port", 0, "HTTP server port")
     f.String("app.env", "", "Environment (development, staging, production)")
     f.String("database.dsn", "", "Database connection string")
+    f.String("auth.issuer", "", "OIDC issuer URL")
+    f.String("auth.client_id", "", "OIDC browser client ID")
     f.String("observability.log_level", "", "Log level")
     f.Bool("database.auto_migrate", false, "Run migrations on startup")
     f.Parse(os.Args[1:])
@@ -371,6 +421,12 @@ func (c *Config) Validate() error {
     if c.Database.DSN == "" {
         errs = append(errs, fmt.Errorf("database.dsn is required"))
     }
+    if c.Auth.Issuer == "" {
+        errs = append(errs, fmt.Errorf("auth.issuer is required"))
+    }
+    if c.Auth.ClientID == "" {
+        errs = append(errs, fmt.Errorf("auth.client_id is required"))
+    }
     if c.App.Port < 1 || c.App.Port > 65535 {
         errs = append(errs, fmt.Errorf("app.port must be between 1 and 65535"))
     }
@@ -412,6 +468,12 @@ vars, never from `forge.yaml`:
 
 ```yaml
 # forge.yaml — NO secrets here
+auth:
+  issuer: "https://auth.myapp.com"
+  client_id: "myapp-browser" # public OIDC client ID, safe to check in
+  service_account:
+    key_path: "" # set via FORGE_AUTH_SERVICE_ACCOUNT_KEY_PATH
+
 mail:
   driver: smtp
   smtp_host: smtp.example.com

@@ -34,8 +34,10 @@ Connect RPC has specific CORS requirements beyond typical REST APIs:
    preflight entirely (reducing latency), but only if configured.
 
 5. **Auth bearer tokens.** The SPA sends `Authorization: Bearer <JWT>`. This
-   makes every request a "credentialed" request, which disqualifies wildcard
-   (`*`) origins — the server must return the exact allowed origin.
+   header makes cross-origin RPCs preflight, and the server must explicitly
+   allow the `Authorization` header. This is different from cookie-based
+   browser auth: Forge's default bearer-token flow does not require
+   `AllowCredentials`.
 
 ---
 
@@ -67,7 +69,7 @@ func CORSMiddleware(cfg CORSConfig) func(http.Handler) http.Handler {
                 "Authorization",              // Bearer JWT
             ),
             ExposedHeaders: connectcors.ExposedHeaders(), // Grpc-Status, Grpc-Message, etc.
-            AllowCredentials: true,
+            AllowCredentials: false,
             MaxAge:           7200, // 2 hours — Chrome caps at this
         })
         return c.Handler(next)
@@ -115,10 +117,11 @@ Connect changes, the package updates, and Forge picks it up via `go get`.
 importers), handles all CORS edge cases (wildcards, credentials, preflight
 caching), and is a standard `net/http` middleware that wraps any `http.Handler`.
 
-**Reason for `AllowCredentials: true`**: The SPA sends an `Authorization`
-header with a Bearer JWT. Browsers treat requests with `Authorization` as
-credentialed. CORS credentialed requests disallow wildcard origins —
-`AllowedOrigins` must list the exact origins.
+**Reason for `AllowCredentials: false`**: Forge's default browser auth flow
+uses bearer tokens, not cookies. The browser still preflights because of the
+`Authorization` header, but that does not require CORS credential mode.
+Leaving credentials disabled keeps the CORS contract aligned with the chosen
+auth architecture.
 
 **Reason for `MaxAge: 7200`**: Browsers cache preflight responses. Each RPC
 call triggers a preflight; caching avoids redundant OPTIONS requests. Chrome
@@ -142,10 +145,10 @@ cors:
 # FORGE_CORS_ALLOWED_ORIGINS=https://myapp.com,https://www.myapp.com
 ```
 
-**Reason for not defaulting to `*`**: Wildcard origins are incompatible with
-credentialed requests (Bearer tokens). Even if they worked, `*` in production
-means any website can make API calls on behalf of authenticated users. The
-developer must explicitly list allowed origins.
+**Reason for not defaulting to `*`**: bearer-token requests can technically
+use wildcard origins when cookies are not involved, but Forge still keeps an
+explicit origin allowlist. Authenticated browser APIs are easier to reason
+about when the intended frontend origins are named directly.
 
 **Development defaults**: When `app.env` is `development`, the framework
 automatically adds `http://localhost:5173` (Vite default) to allowed origins
@@ -264,8 +267,8 @@ it's called."
 |---|----------|-----------|
 | 80 | `connectrpc.com/cors` for header lists | Official package, tracks protocol changes. Don't hardcode protocol headers. |
 | 81 | `rs/cors` for CORS middleware | Most widely used, handles all edge cases, standard `net/http` middleware. |
-| 82 | `AllowCredentials: true` | SPA sends Bearer JWT. Credentialed requests require exact origin matching. |
-| 83 | No wildcard origins | Incompatible with credentials. Wildcard in production is a security hole. |
+| 82 | `AllowCredentials: false` for the default bearer-token SPA flow | Browser auth uses `Authorization` headers, not cookies. Preflight still happens, but credential mode is not required. |
+| 83 | Explicit origins even without cookie auth | Bearer-token CORS can technically use `*`, but Forge keeps an explicit allowlist for a clearer browser contract. |
 | 84 | Explicit allowed origins in config | Developer lists origins. Framework adds `localhost:5173` in dev mode automatically. |
 | 85 | CORS middleware first in chain | Preflight OPTIONS must be handled before routing, auth, or any other middleware. |
 | 86 | `MaxAge: 7200` | Reduces preflight requests. Chrome's maximum. |

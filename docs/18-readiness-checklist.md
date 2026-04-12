@@ -85,19 +85,20 @@ same `Connect + sqlc + Restate + Zitadel + React SPA` contract.
 ### 2. One Auth Model
 
 - [x] Choose one SPA auth default and document it precisely.
-- [ ] Define token storage, refresh behavior, logout behavior, and route
+- [x] Define token storage, refresh behavior, logout behavior, and route
   protection rules.
-- [ ] Add the missing canonical config for auth to the main config document.
-- [ ] Define which endpoints are public, which require authentication, and how
+- [x] Add the missing canonical config for auth to the main config document.
+- [x] Define which endpoints are public, which require authentication, and how
   admin access flows through the backend to Zitadel.
 
 **Why this is release-critical**: auth is not a plugin in Forge's story. It is
 one of the framework's core opinions.
 
-**Progress**: Forge now has an explicit v1 direction: direct OIDC Authorization
-Code flow on all human clients, with no BFF/session-cookie default for the web
-SPA. The remaining work is to define browser token handling, refresh/logout
-behavior, canonical auth config, and exact public/private route contracts.
+**Progress**: Completed. Forge now has one explicit auth model: direct OIDC
+Authorization Code flow on all human clients, with browser-specific defaults
+for `sessionStorage`, refresh handling, logout, route protection, and
+private-by-default RPCs, plus a canonical `auth` config block in the main
+configuration document.
 
 ### 3. Real Idempotency Semantics
 

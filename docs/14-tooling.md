@@ -26,8 +26,8 @@ run = "env GOCACHE=${GOCACHE:-/tmp/gofra-gocache} go test ./..."
 [tasks.gofra]
 run = "env GOCACHE=${GOCACHE:-/tmp/gofra-gocache} go run ./cmd/gofra --help"
 
-[tasks."gen:runtimeconfig"]
-run = "env GOCACHE=${GOCACHE:-/tmp/gofra-gocache} go run ./cmd/gofra generate runtime-config -h"
+[tasks."gen:config"]
+run = "env GOCACHE=${GOCACHE:-/tmp/gofra-gocache} go run ./cmd/gofra generate config -h"
 
 [tasks.new]
 run = "env GOCACHE=${GOCACHE:-/tmp/gofra-gocache} go run ./cmd/gofra new {{arg(i=0)}}"
@@ -57,7 +57,7 @@ mise run smoke:new
 it generates a temporary app and verifies that the generated project passes
 `go test ./...`.
 
-`gofra generate runtime-config` is now part of the public CLI surface, with
+`gofra generate config` is now part of the public CLI surface, with
 normal app developers usually relying on `mise run gen` or `mise run dev`
 rather than invoking the generator directly.
 
@@ -86,7 +86,7 @@ framework repo ships today.
 ```toml
 [tasks.gen]
 description = "Generate all code from proto + SQL"
-depends = ["gen:go", "gen:ts", "gen:runtimeconfig", "gen:sql"]
+depends = ["gen:go", "gen:ts", "gen:config", "gen:sql"]
 
 [tasks."gen:go"]
 run = "buf generate"
@@ -98,10 +98,10 @@ run = "cd web && npx buf generate"
 sources = ["proto/**/*.proto"]
 outputs = ["web/src/gen/**/*.ts"]
 
-[tasks."gen:runtimeconfig"]
-run = "gofra generate runtime-config"
+[tasks."gen:config"]
+run = "gofra generate config"
 sources = ["proto/**/*runtime_config.proto"]
-outputs = ["config/public_config_types_gen.go", "config/public_config_gen.go", "web/src/gen/runtime/runtime-config.ts", "web/src/gen/runtime/runtime-config.global.d.ts"]
+outputs = ["config/public_config_types_gen.go", "config/public_config_gen.go", "web/src/gen/runtime/config.ts", "web/src/gen/runtime/config.global.d.ts"]
 
 [tasks."gen:sql"]
 run = "sqlc generate"
@@ -146,7 +146,7 @@ These are still the target generated-app tasks. Tasks are incremental —
 `sources` and `outputs` track what changed. `mise run gen` only regenerates
 when proto or SQL files change.
 
-The runtime-config generator runs after protobuf codegen and emits:
+The config generator runs after protobuf codegen and emits:
 
 - a generated Go `PublicConfig` subtree in `config/public_config_types_gen.go`
 - typed Go binding code in `config/public_config_gen.go`
@@ -193,7 +193,7 @@ gofra generate object ShoppingCart        # → app/objects/shopping_cart.go
 gofra generate workflow OrderCheckout     # → app/workflows/order_checkout.go
 gofra generate proto posts               # → proto/myapp/posts/v1/posts.proto
 gofra generate migration create_posts    # → db/migrations/..._create_posts.sql
-gofra generate runtime-config            # → sync generated public config + frontend loader
+gofra generate config            # → sync generated public config + frontend loader
 ```
 
 Tasks (build, test, lint, dev) stay in mise. Starter bootstrap and generators
@@ -205,7 +205,7 @@ The intended implementation split behind that CLI is:
 - `internal/generate/` for `gofra generate ...`
 
 The current repo now uses `internal/scaffold/` and
-`internal/generate/runtimeconfig/` for the implemented runtime-config slice.
+`internal/generate/runtimeconfig/` for the implemented config slice.
 
 ## Current Scaffold Strategy
 
@@ -222,7 +222,7 @@ The current implementation strategy is:
 4. Extract narrower post-create generators only after the base starter contract
    is coherent.
 
-The runtime-config feature follows this pattern today:
+The config feature follows this pattern today:
 
 - reusable framework code in public runtime packages
 - project bootstrap in `internal/scaffold/`

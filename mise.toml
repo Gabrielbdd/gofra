@@ -9,9 +9,9 @@ run = "env GOCACHE=${GOCACHE:-/tmp/gofra-gocache} go test ./..."
 description = "Show the current gofra CLI help"
 run = "env GOCACHE=${GOCACHE:-/tmp/gofra-gocache} go run ./cmd/gofra --help"
 
-[tasks."gen:runtimeconfig"]
-description = "Show the current runtime-config generator help"
-run = "env GOCACHE=${GOCACHE:-/tmp/gofra-gocache} go run ./cmd/gofra generate runtime-config -h"
+[tasks."gen:config"]
+description = "Show the config generator help"
+run = "env GOCACHE=${GOCACHE:-/tmp/gofra-gocache} go run ./cmd/gofra generate config -h"
 
 [tasks.new]
 description = "Create a new app from the canonical starter"

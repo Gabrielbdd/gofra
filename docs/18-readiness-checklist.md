@@ -174,16 +174,15 @@ applications and they sit in Gofra's claimed area of responsibility.
 **Why this is release-critical**: "works on a clean machine" is a baseline
 requirement for framework usability.
 
-**Progress**: The frontend runtime-config and local browser-entrypoint story
-are now aligned on one model: browser hits Go on `:3000`, Go proxies Vite in
-dev, and public browser config comes from `/_gofra/config.js`. The intended DX
-is now explicit: edit `runtime_config.proto`, set values under `public.*`,
-regenerate, and consume the new typed field on the frontend. The canonical
-starter now mirrors that shape with a reserved `public` namespace, starter
-config loading from `gofra.yaml` plus env/flags, and placeholder generated
-files, but the full proto-driven generator and final `gofra generate
-runtime-config` UX are still open. Tool/version pinning and Restate endpoint
-cleanup are also still open.
+**Progress**: The config DX is now proto-driven. A single
+`proto/<app>/config/v1/config.proto` file defines the full config schema with
+typed defaults (`gofra.config.v1.field` annotations) and secret marking.
+`gofra generate config` produces Go structs, flag registration, loading, and
+public config wiring — the starter ships zero hand-written config code.
+`gofra new` runs the generator automatically so the app is immediately
+runnable. Browser config comes from `/_gofra/config.js` via the `public`
+subtree convention. Tool/version pinning and Restate endpoint cleanup are
+still open.
 
 ### 9. Operational Baseline
 

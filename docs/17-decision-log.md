@@ -98,6 +98,9 @@
 | 132 | Generated public runtime config for the browser | Browser gets an explicit proto-defined safe subset at `/_gofra/config.js`, loaded from generated `public.*` config and emitted as typed Go and TS APIs. | [06](06-configuration.md) |
 | 133 | Double-underscore env var nesting (`GOFRA_APP__PORT`) | Single-underscore transform is ambiguous for keys with underscores (`auto_migrate`, `client_id`). `__` is industry standard (Docker Compose, .NET). | [06](06-configuration.md) |
 | 134 | Generic `runtimeconfig.Load[T]` in the framework | Config loading is framework logic, not app logic. Shipping 160 lines of loading boilerplate into every scaffold prevents bug propagation and requires manual wiring for each new field. | [06](06-configuration.md) |
+| 135 | Proto-driven config generation (`gofra generate config`) | One proto file is the single source of truth for config types, defaults, descriptions, and public/private separation. Go structs, flag registration, and public config wiring are generated. | [06](06-configuration.md) |
+| 136 | Typed defaults via gofra.config.v1 proto annotations | Proto3 has no field defaults. Only two custom options: `default_value` (typed oneof) and `secret`. Descriptions use proto comments, validation uses buf/validate. | [06](06-configuration.md) |
+| 137 | Two top-level config fields: `app` and `public` | Server-side config nests under `app`. Browser-safe config lives under `public`. The `public` subtree convention determines what gets served at `/_gofra/config.js`. | [06](06-configuration.md) |
 
 ## Auth & Authz (Decisions #67–79, #124–129)
 

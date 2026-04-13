@@ -101,8 +101,8 @@ The generated runtime-config feature has its own test surface on both sides.
 
 Go-side tests:
 
-- generator golden tests for nested field binding, slices, and missing-field
-  rejection
+- generator golden tests for the generated `public.*` config subtree, nested
+  field binding, slices, and missing-field rejection
 - resolver tests for clone semantics, mutator ordering, and error propagation
 - handler tests for `GET`/`HEAD`, content type, `Cache-Control: no-store`, and
   the JavaScript envelope `window.__GOFRA_CONFIG__ = ...`

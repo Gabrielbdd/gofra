@@ -81,9 +81,11 @@ docs disagree, the framework contract itself is unstable.
 **Progress**: Completed by the architecture-alignment pass that normalized the
 core system, API, Restate, database, shutdown, and decision-log docs on the
 same `Connect + sqlc + Restate + Zitadel + React SPA` contract. The
-architecture docs now also distinguish framework-owned library packages from
-starter-owned generated app files, with `internal/projectgen/starter/full/`
-documented as the canonical current starter source.
+architecture docs now also distinguish the repo's three surfaces: the public
+`gofra` CLI, public runtime packages, and starter-owned generated app files,
+with `internal/projectgen/starter/full/` documented as the canonical current
+starter source and `internal/scaffold` / `internal/generate` recorded as the
+intended internal direction.
 
 ### 2. One Auth Model
 
@@ -174,13 +176,13 @@ requirement for framework usability.
 
 **Progress**: The frontend runtime-config and local browser-entrypoint story
 are now aligned on one model: browser hits Go on `:3000`, Go proxies Vite in
-dev, and public browser config comes from `/_gofra/config.js`. Tool/version
-pinning and Restate endpoint cleanup are still open. A minimal runnable
-`gofra new` now exists through the canonical starter in
-`internal/projectgen/starter/full/`, plus the root `runtimeconfig/` package,
-the `cmd/gofra` bootstrap entrypoint, and the
-`cmd/gofra-gen-runtimeconfig` slice generator. Full proto-driven generation and
-dev-task integration are still open.
+dev, and public browser config comes from `/_gofra/config.js`. The intended DX
+is now explicit: edit `runtime_config.proto`, set values under `public.*`,
+regenerate, and consume the new typed field on the frontend. The canonical
+starter now mirrors that shape with a reserved `public` namespace and
+placeholder generated files, but the full proto-driven generator and final
+`gofra generate runtime-config` UX are still open. Tool/version pinning and
+Restate endpoint cleanup are also still open.
 
 ### 9. Operational Baseline
 
@@ -206,9 +208,11 @@ verify repeatedly.
 
 **Progress**: The runtime-config feature now has a documented test shape across
 generator output, Go resolver/handler behavior, and frontend loader/bootstrap
-behavior. The initial scaffold now includes basic Go tests for the shared
-runtime-config resolver, handler, and generator renderers. The broader auth,
-idempotency, workflow, and tenancy matrix is still open.
+behavior. That test shape now also covers the generated `public.*` config
+subtree and the binder from `cfg.Public` to the runtime proto. The initial
+scaffold includes basic Go tests for the shared runtime-config resolver,
+handler, and generator renderers. The broader auth, idempotency, workflow, and
+tenancy matrix is still open.
 
 ---
 

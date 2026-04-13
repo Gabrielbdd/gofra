@@ -12,7 +12,10 @@ This starter is intentionally minimal. It proves the current contract between:
 Today the starter includes:
 
 - a runnable Go HTTP server in `cmd/app`
-- typed application config in `config/`
+- typed application config in `config/`, including a reserved `public.*`
+  namespace for browser-safe runtime values
+- a starter-owned placeholder generated public config subtree in
+  `config/public_config_types_gen.go`
 - a starter-owned public runtime-config binder in `config/public_config_gen.go`
 - a checked-in placeholder runtime-config type under `gen/__GOFRA_PROTO_PACKAGE__/runtime/v1/`
 - a minimal embedded web shell in `web/`

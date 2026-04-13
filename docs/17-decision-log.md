@@ -95,7 +95,7 @@
 | 64 | No global config singleton | Config passed from main(). Same DI pattern as everything else. | [06](06-configuration.md) |
 | 65 | Manual validation over struct tags | Startup-time concern. Simple rules. 10-line function. | [06](06-configuration.md) |
 | 66 | Secrets only via env vars | YAML is in version control. Secrets in VCS = security incident. | [06](06-configuration.md) |
-| 132 | Generated public runtime config for the browser | Browser gets an explicit proto-defined safe subset at `/_gofra/config.js`, not raw env vars or secrets. | [06](06-configuration.md) |
+| 132 | Generated public runtime config for the browser | Browser gets an explicit proto-defined safe subset at `/_gofra/config.js`, loaded from generated `public.*` config and emitted as typed Go and TS APIs. | [06](06-configuration.md) |
 
 ## Auth & Authz (Decisions #67–79, #124–129)
 
@@ -200,4 +200,4 @@
 
 | # | Decision | Rationale | Doc |
 |---|----------|-----------|-----|
-| 134 | Framework repo uses reusable root packages plus a canonical embedded starter | Keeps framework code distinct from generated app code while giving `gofra new` one testable source of truth. | [02](02-system-architecture.md) |
+| 134 | Framework repo has three surfaces: one public CLI, public runtime packages, and a canonical starter | Keeps tooling, app-facing library code, and generated-app contract distinct while preserving one versioned repo and module during the early phase. | [02](02-system-architecture.md) |

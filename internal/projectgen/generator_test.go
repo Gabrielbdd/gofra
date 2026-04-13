@@ -36,6 +36,7 @@ func TestGenerateCreatesRunnableStarter(t *testing.T) {
 		"config/config.go",
 		"config/public_config.go",
 		"config/public_config_gen.go",
+		"config/public_config_types_gen.go",
 		"gen/myapp/runtime/v1/runtime_config.pb.go",
 		"proto/myapp/runtime/v1/runtime_config.proto",
 		"web/embed.go",

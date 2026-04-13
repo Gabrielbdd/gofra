@@ -7,21 +7,21 @@ import (
 )
 
 // BindPublicConfig is starter-owned placeholder glue until the proto-driven
-// runtime-config generator emits this binder automatically.
+// runtime-config generator emits the binder from cfg.Public automatically.
 func BindPublicConfig(cfg *Config) (*runtimev1.RuntimeConfig, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config: nil *Config")
 	}
 
 	return &runtimev1.RuntimeConfig{
-		AppName:    cfg.App.Name,
-		APIBaseURL: fmt.Sprintf("http://localhost:%d", cfg.App.Port),
+		AppName:    cfg.Public.AppName,
+		APIBaseURL: cfg.Public.APIBaseURL,
 		Auth: runtimev1.AuthConfig{
-			Issuer:                 cfg.Auth.Issuer,
-			ClientID:               cfg.Auth.ClientID,
-			Scopes:                 append([]string(nil), cfg.Auth.Scopes...),
-			RedirectPath:           cfg.Auth.RedirectPath,
-			PostLogoutRedirectPath: cfg.Auth.PostLogoutRedirectPath,
+			Issuer:                 cfg.Public.Auth.Issuer,
+			ClientID:               cfg.Public.Auth.ClientID,
+			Scopes:                 append([]string(nil), cfg.Public.Auth.Scopes...),
+			RedirectPath:           cfg.Public.Auth.RedirectPath,
+			PostLogoutRedirectPath: cfg.Public.Auth.PostLogoutRedirectPath,
 		},
 	}, nil
 }

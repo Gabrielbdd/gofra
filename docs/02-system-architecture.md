@@ -226,8 +226,22 @@ evolve coherently.
 
 ### Framework Repository Structure
 
-The framework repo keeps reusable packages at the root and keeps the canonical
-generated-app starter under `internal/projectgen/starter/`:
+The framework repo should be understood as three separate product surfaces that
+live in one module and one repository for now:
+
+1. The **Gofra CLI**: developer tooling, bootstrap, and generators.
+2. The **Gofra runtime library**: public Go packages that generated apps import.
+3. The **canonical starter/scaffold**: the source-of-truth generated app shape
+   that `gofra new` copies.
+
+Treating the repo as only "CLI + library" misses the starter/scaffold surface.
+That starter is neither just implementation detail nor public runtime API. It
+is the contract for what a fresh generated application looks like.
+
+### Current Framework Repo Layout
+
+The current code keeps reusable packages at the repo root and keeps the
+canonical generated-app starter under `internal/projectgen/starter/`:
 
 ```
 gofra/
@@ -237,20 +251,23 @@ gofra/
 │   ├── projectgen/
 │   │   ├── generator.go        # Embedded starter copy + token replacement
 │   │   └── starter/full/       # Canonical generated app source tree
-│   └── runtimeconfiggen/       # Generator internals (not public API)
+│   └── runtimeconfiggen/       # Runtime-config generator internals (not public API)
 ├── cmd/
 │   ├── gofra/
-│   │   └── main.go             # `gofra new` and future project generators
+│   │   └── main.go             # `gofra new` and future `gofra generate ...`
 │   └── gofra-gen-runtimeconfig/
-│       └── main.go             # Codegen entrypoint for the runtime-config slice
+│       └── main.go             # Temporary slice entrypoint while the public UX converges on `gofra generate runtime-config`
 ├── docs/                       # Product contract and architecture docs
 ├── AGENTS.md
 └── CLAUDE.md
 ```
 
-**Reason for reusable packages at the repo root**: these are the framework
-APIs that generated apps should import directly. Hiding them inside starter or
-app would invert the dependency direction.
+**Reason for reusable app-facing packages outside `internal/`**: these are the
+framework APIs that generated apps should import directly. Hiding them inside
+starter or generator code would invert the dependency direction. The current
+root-level packages are acceptable while the surface is small, but the long-term
+direction should converge on a stable `runtime/` prefix instead of indefinite
+flat root-package growth.
 
 **Reason for `internal/` generator packages**: generator implementation details
 should stay private. The public interface is the `gofra` command, not the code
@@ -265,6 +282,55 @@ that the framework repo itself is the application.
 behavior belongs in framework packages such as `runtimeconfig/`. App-specific
 wiring, checked-in generated placeholders, and shell files belong in the
 starter because they are part of the generated project, not the framework API.
+
+### Intended Repository Organization
+
+As the repo grows, the organizing principle should become more explicit:
+
+```text
+cmd/gofra/                  # Only public CLI binary
+
+internal/scaffold/          # `gofra new` implementation
+internal/scaffold/starter/  # Canonical generated app source tree
+
+internal/generate/          # App-mutating generators behind `gofra generate ...`
+internal/generate/runtimeconfig/
+internal/generate/service/
+internal/generate/workflow/
+
+runtime/                    # Public app-facing packages
+runtime/config/
+runtime/http/
+runtime/auth/
+runtime/restate/
+
+docs/
+```
+
+This is the intended architectural direction, not a claim that the repo has
+already finished renaming its current directories. Today the equivalent code is
+still primarily under `internal/projectgen/`, `internal/runtimeconfiggen/`, and
+root packages such as `runtimeconfig/`.
+
+The main reason for this shape is to make the three surfaces visible at a
+glance:
+
+- `cmd/gofra/` is the only public tooling entrypoint
+- `runtime/` is the only app-facing import surface
+- `internal/scaffold/` owns project creation
+- `internal/generate/` owns code generation that mutates generated apps
+
+### Dependency Rules
+
+The repository should preserve these dependency boundaries:
+
+- generated apps may import only public runtime packages
+- `cmd/gofra` may import internal scaffold and generator packages
+- the starter may import public runtime packages, never `internal/*`
+- public runtime packages must never depend on scaffold or generator code
+
+These rules matter more than the exact package names. They keep the dependency
+direction stable while the repo is still early.
 
 ### Current Starter Ownership
 
@@ -281,7 +347,9 @@ but it is intentionally smaller than the full target layout below.
 Today `gofra new` copies one minimal runnable starter that includes:
 
 - `cmd/app/` for the HTTP entrypoint
-- `config/` for typed config plus runtime-config wiring
+- `config/` for typed config plus public runtime-config wiring
+- `config/public_config_types_gen.go` as placeholder generated code for the
+  reserved `public.*` config subtree
 - `gen/<app>/runtime/v1/` for checked-in placeholder runtime-config Go types
 - `proto/<app>/runtime/v1/` for the public runtime-config contract stub
 - `web/` for a minimal embedded shell
@@ -302,7 +370,7 @@ myapp/
 ├── mise.toml                    # Tool versions + task definitions
 ├── buf.yaml                     # buf module config (proto deps, lint rules)
 ├── buf.gen.yaml                 # buf code generation config
-├── gofra.yaml                   # Runtime config
+├── gofra.yaml                   # Runtime config; browser-safe values live under `public:`
 ├── sqlc.yaml                    # sqlc configuration
 ├── .env                         # Environment-specific secrets
 │
@@ -355,8 +423,10 @@ myapp/
 │   └── factories/               # Model factories for testing
 │
 ├── config/
-│   ├── config.go                # Typed runtime config
-│   ├── public_config.go         # Runtime-config resolver + optional mutator glue
+│   ├── config.go                # Typed runtime config root; includes stable `Public PublicConfig`
+│   ├── public_config.go         # App-owned runtime-config resolver wiring + optional custom logic
+│   ├── public_config_types_gen.go # Generated `public.*` config subtree from runtime_config.proto
+│   ├── public_config_gen.go     # Generated binder from `cfg.Public` to `runtime.v1.RuntimeConfig`
 │   ├── routes.go                # Plain HTTP routes (webhooks, health, SPA)
 │   └── events.go                # Durable event listener map
 │
@@ -936,9 +1006,11 @@ The browser gets deploy-time settings from Go, not from baked frontend env
 variables. Go serves a browser-safe payload at `/_gofra/config.js`, and
 `web/index.html` loads it before the frontend bundle.
 
-The payload is defined by a dedicated runtime-config proto and resolved from
-`config.Config` by generated code. Applications can optionally add custom Go
-logic for request-aware public values.
+The payload is defined by a dedicated runtime-config proto. Gofra generates a
+matching `PublicConfig` subtree under the app's `config` package, loaded from
+`gofra.yaml`, env vars, and CLI flags under `public.*`. It also generates the
+binder from `cfg.Public` to `runtime.v1.RuntimeConfig`. Applications can
+optionally add custom Go logic for derived or request-aware public values.
 
 This route contains only public values such as OIDC issuer, public client ID,
 redirect paths, and API base URL. It never exposes secrets or server-only

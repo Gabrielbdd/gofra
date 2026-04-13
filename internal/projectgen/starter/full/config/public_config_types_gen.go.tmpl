@@ -1,0 +1,19 @@
+package config
+
+// This file is starter-owned placeholder code that mirrors the shape of the
+// future generated public config subtree until proto-driven generation is wired
+// into the starter workflow.
+
+type PublicConfig struct {
+	AppName    string
+	APIBaseURL string
+	Auth       PublicAuthConfig
+}
+
+type PublicAuthConfig struct {
+	Issuer                 string
+	ClientID               string
+	Scopes                 []string
+	RedirectPath           string
+	PostLogoutRedirectPath string
+}

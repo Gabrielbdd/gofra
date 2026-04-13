@@ -61,7 +61,8 @@ package myapp.runtime.v1;
 
 message RuntimeConfig {
   string api_base_url = 1;
-  AuthConfig auth = 2;
+  string sentry_dsn = 2;
+  AuthConfig auth = 3;
 }
 
 message AuthConfig {
@@ -72,6 +73,13 @@ message AuthConfig {
   string post_logout_redirect_path = 5;
 }
 ```
+
+The user workflow is:
+
+1. Add a field to `proto/myapp/runtime/v1/runtime_config.proto`.
+2. Set the value under `public.*` in YAML, env vars, or flags.
+3. Regenerate code.
+4. Import the new typed field in the SPA.
 
 Gofra generates the frontend loader, so application code does not touch
 `window.__GOFRA_CONFIG__` directly:
@@ -107,11 +115,11 @@ export function isRuntimeConfig(value: unknown): value is RuntimeConfig;
 ```
 
 On the backend, Gofra also generates a convention-first resolver. Proto fields
-bind to `config.Config` by matching nested names:
+bind to the generated `cfg.Public` subtree by matching nested names:
 
-- `runtime_config.auth.issuer` -> `cfg.Auth.Issuer`
-- `runtime_config.auth.client_id` -> `cfg.Auth.ClientID`
-- `runtime_config.auth.redirect_path` -> `cfg.Auth.RedirectPath`
+- `runtime_config.api_base_url` -> `cfg.Public.APIBaseURL`
+- `runtime_config.sentry_dsn` -> `cfg.Public.SentryDSN`
+- `runtime_config.auth.client_id` -> `cfg.Public.Auth.ClientID`
 
 The common case is zero handwritten mapping code:
 
@@ -120,7 +128,7 @@ resolver := runtimeconfig.NewResolver(appCfg, BindPublicConfig)
 mux.Handle("/_gofra/config.js", runtimeconfig.Handler(resolver))
 ```
 
-For dynamic values, the app can opt into a small mutator hook:
+For derived or request-aware values, the app can opt into a small mutator hook:
 
 ```go
 resolver := runtimeconfig.NewResolver(
@@ -138,13 +146,13 @@ browser. Secrets, service-account keys, database URLs, and any other
 server-only settings remain in Go memory only.
 
 **Reason for a generated abstraction on both sides**: the browser contract is
-typed once in proto, then consumed from generated Go and TypeScript. This
-avoids parallel handwritten config types in two languages.
+typed once in proto, then consumed from generated Go and TypeScript. The user
+adds a proto field, sets `public.*`, regenerates, and gets one coherent result.
 
-**Reason for convention-first binding instead of proto annotations**: the proto
-already defines the browser allowlist. Matching proto fields to `config.Config`
-by naming convention keeps the common case low-boilerplate while still allowing
-custom Go code for dynamic values.
+**Reason for convention-first binding into `cfg.Public`**: the proto already
+defines the browser allowlist. Generating a dedicated `public.*` config subtree
+keeps the common case low-boilerplate without requiring manual edits to the
+handwritten root config.
 
 **Reason for `config.js` instead of a public RPC**: the browser gets runtime
 config synchronously before the SPA boots, with the same path in dev and prod.

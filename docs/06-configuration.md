@@ -77,6 +77,7 @@ type Config struct {
     Database DatabaseConfig `koanf:"database"`
     Restate  RestateConfig  `koanf:"restate"`
     Auth     AuthConfig     `koanf:"auth"`
+    Public   PublicConfig   `koanf:"public"`        // Generated from proto/myapp/runtime/v1/runtime_config.proto
     OTEL     OTELConfig     `koanf:"observability"`
     Mail     MailConfig     `koanf:"mail"`
     Storage  StorageConfig  `koanf:"storage"`
@@ -120,6 +121,22 @@ type AuthConfig struct {
 
 type AuthServiceAccountConfig struct {
     KeyPath string `koanf:"key_path"` // Path to Zitadel JWT-profile service account key
+}
+
+// PublicConfig is generated from the runtime-config proto so the app-owned
+// root config only needs one stable `Public` field.
+type PublicConfig struct {
+    APIBaseURL string           `koanf:"api_base_url"`
+    SentryDSN  string           `koanf:"sentry_dsn"`
+    Auth       PublicAuthConfig `koanf:"auth"`
+}
+
+type PublicAuthConfig struct {
+    Issuer                 string   `koanf:"issuer"`
+    ClientID               string   `koanf:"client_id"`
+    Scopes                 []string `koanf:"scopes"`
+    RedirectPath           string   `koanf:"redirect_path"`
+    PostLogoutRedirectPath string   `koanf:"post_logout_redirect_path"`
 }
 
 type OTELConfig struct {
@@ -192,6 +209,20 @@ auth:
   service_account:
     key_path: "${ZITADEL_SERVICE_ACCOUNT_KEY}"
 
+public:
+  api_base_url: "http://localhost:3000"
+  auth:
+    issuer: "http://localhost:9000"
+    client_id: "${ZITADEL_BROWSER_CLIENT_ID}"
+    scopes:
+      - openid
+      - profile
+      - email
+      - offline_access
+      - urn:zitadel:iam:org:projects:roles
+    redirect_path: "/auth/callback"
+    post_logout_redirect_path: "/"
+
 observability:
   endpoint: "localhost:4317"
   log_level: debug
@@ -230,6 +261,10 @@ database.auto_migrate → GOFRA_DATABASE_AUTO_MIGRATE
 restate.ingress_url   → GOFRA_RESTATE_INGRESS_URL
 auth.issuer           → GOFRA_AUTH_ISSUER
 auth.client_id        → GOFRA_AUTH_CLIENT_ID
+public.api_base_url   → GOFRA_PUBLIC_API_BASE_URL
+public.sentry_dsn     → GOFRA_PUBLIC_SENTRY_DSN
+public.auth.issuer    → GOFRA_PUBLIC_AUTH_ISSUER
+public.auth.client_id → GOFRA_PUBLIC_AUTH_CLIENT_ID
 auth.redirect_path    → GOFRA_AUTH_REDIRECT_PATH
 observability.endpoint→ GOFRA_OBSERVABILITY_ENDPOINT
 mail.smtp_pass        → GOFRA_MAIL_SMTP_PASS
@@ -411,9 +446,8 @@ and every other dependency.
 
 ## Public Runtime Config For The Browser
 
-The browser must not read raw environment variables directly. Gofra derives a
-public runtime config message from the server config and exposes it at
-`GET /_gofra/config.js`.
+The browser must not read raw environment variables directly. Gofra exposes an
+explicit public runtime-config contract at `GET /_gofra/config.js`.
 
 The public browser contract is not the same type as `config.Config`. It lives
 in its own proto so the browser-safe allowlist is explicit:
@@ -422,7 +456,8 @@ in its own proto so the browser-safe allowlist is explicit:
 // proto/myapp/runtime/v1/runtime_config.proto
 message RuntimeConfig {
   string api_base_url = 1;
-  AuthConfig auth = 2;
+  string sentry_dsn = 2;
+  AuthConfig auth = 3;
 }
 
 message AuthConfig {
@@ -434,38 +469,86 @@ message AuthConfig {
 }
 ```
 
-Gofra generates a resolver that binds this proto to `config.Config` by
-convention:
+Adding a new browser-safe field follows one path:
 
-- proto `snake_case` fields map to Go struct fields
-- nested proto messages map to nested config structs
-- repeated fields map to slices
-- only fields present in the runtime-config proto are exposed
+1. Add the field to `proto/myapp/runtime/v1/runtime_config.proto`.
+2. Regenerate code.
+3. Set the value under `public.*` via YAML, env vars, or CLI flags.
+4. Consume the new typed field from the generated frontend API.
+
+The common case should require no handwritten Go mapping and no parallel
+TypeScript edits.
+
+Gofra generates a dedicated public config subtree from the runtime-config proto
+and keeps the app-owned root config stable:
+
+```go
+type Config struct {
+    App    AppConfig    `koanf:"app"`
+    Auth   AuthConfig   `koanf:"auth"`
+    Public PublicConfig `koanf:"public"` // Generated type
+}
+```
+
+For the example proto above, the generated config values are loaded from the
+reserved `public.*` namespace:
+
+```yaml
+public:
+  api_base_url: "http://localhost:3000"
+  sentry_dsn: "https://example.ingest.sentry.io/123"
+  auth:
+    issuer: "http://localhost:9000"
+    client_id: "myapp-web"
+```
+
+```bash
+GOFRA_PUBLIC_API_BASE_URL=http://localhost:3000
+GOFRA_PUBLIC_SENTRY_DSN=https://example.ingest.sentry.io/123
+GOFRA_PUBLIC_AUTH_ISSUER=http://localhost:9000
+GOFRA_PUBLIC_AUTH_CLIENT_ID=myapp-web
+```
+
+```bash
+./myapp \
+  --public.api_base_url=http://localhost:3000 \
+  --public.sentry_dsn=https://example.ingest.sentry.io/123
+```
 
 Generated and handwritten responsibilities are split cleanly:
 
-- `config/config.go` remains the handwritten server config root
+- `proto/myapp/runtime/v1/runtime_config.proto` is the app-owned browser
+  contract
+- `config/config.go` remains the handwritten server config root with one stable
+  `Public PublicConfig` field
+- `config/public_config_types_gen.go` contains generated `PublicConfig` and
+  nested types derived from the runtime-config proto
+- `config/public_config_gen.go` contains the generated binder from `cfg.Public`
+  to `runtimev1.RuntimeConfig`
 - `config/public_config.go` contains app-owned wiring and optional custom logic
-- `config/public_config_gen.go` is generated in the long-term design and is
-  starter-owned placeholder glue today
 - `runtimeconfig/` contains the reusable resolver and HTTP handler behavior
-- `cmd/gofra-gen-runtimeconfig/main.go` is the codegen entrypoint
+- `web/src/gen/runtime/` contains the generated frontend loader and
+  `Window.__GOFRA_CONFIG__` typing
+- the intended public generator shape is `gofra generate runtime-config`; the
+  framework repo currently also carries a temporary dedicated slice entrypoint
+  while that wiring lands
 
 ```go
 resolver := runtimeconfig.NewResolver(appCfg, BindPublicConfig)
 mux.Handle("/_gofra/config.js", runtimeconfig.Handler(resolver))
 ```
 
-This generated code uses typed Go field access, not runtime reflection. If a
-bound config path stops existing, the generated code fails to compile.
+This generated code uses typed Go field access, not runtime reflection. The
+generated binder reads `cfg.Public`, so adding a runtime-config proto field does
+not require manual edits to the handwritten root `Config` type.
 
 The generator contract is:
 
-- input: runtime-config proto descriptor plus the Go config package/type
-- output: typed Go code that assigns `cfg.Auth.Issuer`, `cfg.Auth.ClientID`,
-  and other direct selectors into the runtime proto
-- failure mode: generation stops if a public proto field cannot be mapped by
-  convention
+- input: runtime-config proto descriptor
+- output: generated Go `PublicConfig` types, a binder from `cfg.Public` to the
+  runtime proto, and the frontend runtime-config loader/types
+- failure mode: generation stops if the public contract cannot be rendered into
+  valid generated code
 
 The reusable Go API is generic over the application config type and the public
 runtime-config type:
@@ -485,7 +568,8 @@ func WithMutator[T any](Mutator[T]) Option[T]
 func Handler[T any](r Resolver[T]) http.Handler
 ```
 
-For request-aware public config, the application can add a mutator:
+The common case is zero handwritten mapping code. For derived or request-aware
+public config, the application can add a mutator:
 
 ```go
 resolver := runtimeconfig.NewResolver(
@@ -497,6 +581,10 @@ resolver := runtimeconfig.NewResolver(
     }),
 )
 ```
+
+This is the escape hatch for values such as `api_base_url` derived from
+`app.port`, per-request tenant branding, or environment-dependent CDN origins.
+It should be the exception, not the default path.
 
 The handler serializes the resolved value to JavaScript:
 
@@ -510,17 +598,22 @@ The handler accepts only `GET` and `HEAD`. Handler failures return `500` and do
 not emit partial config.
 
 Until the full proto-driven runtime-config generation is wired into the starter,
-`gofra new` checks in starter-owned placeholder files under `gen/` and
-`config/public_config_gen.go` that mirror the future generated output shape.
+`gofra new` checks in starter-owned placeholder files under `gen/`,
+`config/public_config_types_gen.go`, and `config/public_config_gen.go` that
+mirror the future generated output shape.
 
 **Reason for a dedicated public proto instead of exposing env vars directly**:
 the server config contains secrets and server-only settings. The browser should
 receive only an explicit allowlist of safe values.
 
-**Reason for a generated resolver instead of handwritten mapping by default**:
-changing the public config contract should not require parallel manual edits in
-Go and TypeScript. The generated binder keeps the common case mechanical and
-type-checked.
+**Reason for a generated `public.*` config subtree instead of handwritten root
+config fields**: changing the public browser contract should not require manual
+edits to the app-owned root `Config` type. The user edits the proto, sets
+`public.*` values, regenerates, and gets matching Go and TypeScript types.
+
+**Reason for keeping `public.*` explicit even when some values overlap with
+server config**: the browser allowlist is its own product contract. Gofra
+should not infer browser-visible fields from arbitrary server config.
 
 **Reason for `/_gofra/config.js` instead of build-time `VITE_*` variables**:
 the same frontend bundle can run in different environments without a rebuild.
@@ -629,4 +722,4 @@ Docker, Kubernetes, and every PaaS.
 | 64 | No global config singleton | Config is a value passed in `main()`. Follows the same DI pattern as every other dependency. |
 | 65 | Manual validation over struct tags | Startup-time concern. Simple rules. 10-line function is clearer than a validation framework. |
 | 66 | Secrets only via env vars | YAML is in version control. Secrets in VCS is a security incident. |
-| 132 | Generated public runtime config for the browser | Browser gets an explicit proto-defined safe subset at `/_gofra/config.js`, not raw env vars or secrets. |
+| 132 | Generated public runtime config for the browser | Browser gets an explicit proto-defined safe subset at `/_gofra/config.js`, loaded from generated `public.*` config and emitted as typed Go and TS APIs. |

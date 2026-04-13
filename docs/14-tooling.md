@@ -209,7 +209,11 @@ The current repo now uses `internal/scaffold/` and
 
 ## Current Scaffold Strategy
 
-Gofra now ships one canonical starter so `gofra new` works immediately, but the
+**Decision #138.** Scaffold output contains no generated code. `gofra new` is a
+pure file-copy + token-replace. Code generation happens via `mise run generate`
+in the generated app.
+
+Gofra ships one canonical starter so `gofra new` works immediately, but the
 starter is intentionally minimal while the broader framework contract is still
 settling.
 
@@ -217,8 +221,8 @@ The current implementation strategy is:
 
 1. Build a reusable framework slice on the public runtime surface.
 2. Wire that slice into `internal/scaffold/starter/full/`.
-3. Test `gofra new` by generating a real app into a temp directory and running
-   `go test ./...` there.
+3. Test `gofra new` by generating a real app into a temp directory, running
+   `mise run generate`, and then `go test ./...` there.
 4. Extract narrower post-create generators only after the base starter contract
    is coherent.
 
@@ -226,7 +230,7 @@ The config feature follows this pattern today:
 
 - reusable framework code in public runtime packages
 - project bootstrap in `internal/scaffold/`
-- generator internals in `internal/generate/runtimeconfig/`
+- generator internals in `internal/generate/config/`
 - the public CLI surface in `cmd/gofra/`
 - starter-owned app wiring in `internal/scaffold/starter/full/`
 
@@ -234,21 +238,40 @@ In current code, those responsibilities are implemented primarily by:
 
 - `runtime/config/`
 - `internal/scaffold/`
-- `internal/generate/runtimeconfig/`
+- `internal/generate/config/`
 - `internal/scaffold/starter/full/`
 
-The canonical starter now loads runtime config from defaults, `gofra.yaml`,
+The canonical starter loads runtime config from defaults, `gofra.yaml`,
 `GOFRA_*` env vars, and CLI flags before exposing the public subset at
 `/_gofra/config.js`.
 
-`gofra new` currently performs one job only:
+`gofra new` performs one job only:
 
 - copy the canonical starter into a destination directory
 - rewrite reserved placeholders such as module path, app name, proto package,
   and the temporary local framework `replace`
 
+The generated app ships a `mise.toml` with a `generate` task that runs
+`gofra generate config` via `go run` against the local framework checkout,
+and a `dev` task that depends on `generate` before starting the server.
+The developer workflow is:
+
+```bash
+gofra new myapp
+cd myapp
+mise trust
+mise run dev        # runs generate, then starts the backend
+```
+
+`go.sum` does not exist after `gofra new`. The generate task uses
+`GOFLAGS=-mod=mod` so `go run` bootstraps `go.sum` on first invocation,
+then `go mod tidy` finalises it. Generated outputs (`config/*_gen.go`) and
+`go.sum` are committed after the first `mise run generate`.
+
 **Reason**: one starter is enough to make project creation real now without
-committing to conditional scaffold composition too early.
+committing to conditional scaffold composition too early. Decoupling code
+generation from `gofra new` means future generators don't require scaffold
+changes — they just add mise tasks.
 
 ## Decisions in This Section
 

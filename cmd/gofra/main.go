@@ -76,7 +76,8 @@ func runNew(args []string) error {
 		absTarget = targetDir
 	}
 
-	fmt.Fprintf(os.Stdout, "created %s\n", absTarget)
+	fmt.Fprintf(os.Stdout, "created %s\n\nnext steps:\n  cd %s\n  mise trust\n  mise run dev\n",
+		absTarget, filepath.Base(absTarget))
 	return nil
 }
 

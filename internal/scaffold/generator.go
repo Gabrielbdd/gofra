@@ -6,11 +6,8 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-
-	configgen "databit.com.br/gofra/internal/generate/config"
 )
 
 const (
@@ -141,19 +138,7 @@ func Generate(opts Options) error {
 		return err
 	}
 
-	protoFile := filepath.Join(
-		opts.Destination, "proto", opts.ProtoPackage, "config", "v1", "config.proto",
-	)
-	if err := configgen.Generate(configgen.Options{
-		ProtoFile:     protoFile,
-		OutputDir:     filepath.Join(opts.Destination, "config"),
-		GoPackage:     "config",
-		RuntimeImport: opts.FrameworkModule + "/runtime/config",
-	}); err != nil {
-		return fmt.Errorf("generate config: %w", err)
-	}
-
-	return goModTidy(opts.Destination)
+	return nil
 }
 
 func fillDefaults(opts Options) (Options, error) {
@@ -266,12 +251,3 @@ func replaceTokens(value string, replacements map[string]string) string {
 	return value
 }
 
-func goModTidy(dir string) error {
-	cmd := exec.Command("go", "mod", "tidy")
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "GOWORK=off")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("go mod tidy: %w\n%s", err, output)
-	}
-	return nil
-}

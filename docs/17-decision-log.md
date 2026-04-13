@@ -201,8 +201,9 @@
 |---|----------|-----------|-----|
 | 133 | Runtime config tested at generator, handler, and frontend-loader boundaries | Public browser config spans Go, generated code, and SPA startup. One test layer is not enough. | [16](16-testing.md) |
 
-## Framework Development (Decision #134)
+## Framework Development (Decisions #134, #138)
 
 | # | Decision | Rationale | Doc |
 |---|----------|-----------|-----|
 | 134 | Framework repo has three surfaces: one public CLI, public runtime packages, and a canonical starter | Keeps tooling, app-facing library code, and generated-app contract distinct while preserving one versioned repo and module during the early phase. | [02](02-system-architecture.md) |
+| 138 | Scaffold output contains no generated code | Generated files are derived artifacts that couple `gofra new` to every generator. Config gen moves to `mise run generate` in the generated app. | [14](14-tooling.md) |

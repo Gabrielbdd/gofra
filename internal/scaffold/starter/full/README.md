@@ -13,12 +13,12 @@ Today the starter includes:
 
 - a runnable Go HTTP server in `cmd/app`
 - a proto-driven config schema in `proto/__GOFRA_PROTO_PACKAGE__/config/v1/config.proto`
-- generated typed config in `config/` (`config_gen.go`, `load_gen.go`, `public_gen.go`)
+- config code generation via `mise run generate` (produces `config/*_gen.go`)
 - optional YAML overrides in `gofra.yaml`
 - a minimal embedded web shell in `web/`
 
 Config fields, defaults, and descriptions are defined once in the proto file.
-Run `gofra generate config` after editing the proto to regenerate the Go code.
+Run `mise run generate` after editing the proto to regenerate the Go code.
 
 ## Local Framework Dependency
 
@@ -31,5 +31,9 @@ Once the framework is published, this temporary local replace can be removed.
 ## Run
 
 ```bash
-go run ./cmd/app
+mise trust
+mise run dev
 ```
+
+`mise run dev` depends on `mise run generate`, so config code is always
+up-to-date before the server starts.

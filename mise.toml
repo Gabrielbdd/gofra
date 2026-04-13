@@ -29,6 +29,8 @@ tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/gofra-smoke-XXXXXX")"
 env GOCACHE="${GOCACHE:-/tmp/gofra-gocache}" go run ./cmd/gofra new "$tmpdir"
 (
   cd "$tmpdir"
+  mise trust --yes
+  mise run generate
   env GOCACHE="${GOCACHE:-/tmp/gofra-gocache}" go test ./...
 )
 printf 'generated app verified at %s\n' "$tmpdir"

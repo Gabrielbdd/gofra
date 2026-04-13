@@ -179,8 +179,9 @@ requirement for framework usability.
 typed defaults (`gofra.config.v1.field` annotations) and secret marking.
 `gofra generate config` produces Go structs, flag registration, loading, and
 public config wiring — the starter ships zero hand-written config code.
-`gofra new` runs the generator automatically so the app is immediately
-runnable. Browser config comes from `/_gofra/config.js` via the `public`
+`gofra new` does a pure file copy; `mise run generate` handles code generation;
+the developer workflow is `gofra new myapp && cd myapp && mise trust && mise run dev`.
+Browser config comes from `/_gofra/config.js` via the `public`
 subtree convention. Tool/version pinning and Restate endpoint cleanup are
 still open.
 

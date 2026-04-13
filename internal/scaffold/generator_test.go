@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+
+	configgen "databit.com.br/gofra/internal/generate/config"
 )
 
 func TestGenerateCreatesRunnableStarter(t *testing.T) {
@@ -31,26 +33,44 @@ func TestGenerateCreatesRunnableStarter(t *testing.T) {
 
 	for _, rel := range []string{
 		"go.mod",
-		"go.sum",
+		"mise.toml",
 		"README.md",
 		"cmd/app/main.go",
-		"config/config_gen.go",
-		"config/load_gen.go",
-		"config/public_gen.go",
 		"proto/myapp/config/v1/config.proto",
 		"web/embed.go",
 		"web/index.html",
+	} {
+		if _, err := os.Stat(filepath.Join(destination, rel)); err != nil {
+			t.Fatalf("missing scaffold file %q: %v", rel, err)
+		}
+	}
+
+	assertNoTokensRemain(t, destination)
+
+	// Run config generation (mimics `mise run generate`).
+	protoFile := filepath.Join(destination, "proto", "myapp", "config", "v1", "config.proto")
+	if err := configgen.Generate(configgen.Options{
+		ProtoFile:     protoFile,
+		OutputDir:     filepath.Join(destination, "config"),
+		GoPackage:     "config",
+		RuntimeImport: framework.Module + "/runtime/config",
+	}); err != nil {
+		t.Fatalf("configgen.Generate() error = %v", err)
+	}
+
+	for _, rel := range []string{
+		"config/config_gen.go",
+		"config/load_gen.go",
+		"config/public_gen.go",
 	} {
 		if _, err := os.Stat(filepath.Join(destination, rel)); err != nil {
 			t.Fatalf("missing generated file %q: %v", rel, err)
 		}
 	}
 
-	assertNoTokensRemain(t, destination)
-
 	cmd := exec.Command("go", "test", "./...")
 	cmd.Dir = destination
-	cmd.Env = append(os.Environ(), "GOWORK=off")
+	cmd.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=-mod=mod")
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {

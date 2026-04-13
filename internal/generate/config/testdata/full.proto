@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package testapp.config.v1;
+
+import "gofra/config/v1/annotations.proto";
+
+message Config {
+  AppConfig app = 1;
+  PublicConfig public = 2;
+}
+
+message AppConfig {
+  // HTTP server port.
+  int32 port = 1 [(gofra.config.v1.field).default_value.int32_value = 3000];
+
+  // Application name.
+  string name = 2 [(gofra.config.v1.field).default_value.string_value = "testapp"];
+
+  // Database configuration.
+  DatabaseConfig database = 3;
+}
+
+message DatabaseConfig {
+  // PostgreSQL connection string.
+  string dsn = 1 [(gofra.config.v1.field).secret = true];
+
+  // Maximum number of open connections.
+  int32 max_open_conns = 2 [(gofra.config.v1.field).default_value.int32_value = 25];
+
+  // Automatically run migrations on startup.
+  bool auto_migrate = 3;
+}
+
+message PublicConfig {
+  // Display name shown in the browser.
+  string app_name = 1 [(gofra.config.v1.field).default_value.string_value = "testapp"];
+
+  // Base URL for API calls from the frontend.
+  string api_base_url = 2 [(gofra.config.v1.field).default_value.string_value = "http://localhost:3000"];
+
+  // Authentication configuration.
+  PublicAuthConfig auth = 3;
+}
+
+message PublicAuthConfig {
+  // OIDC issuer URL.
+  string issuer = 1 [(gofra.config.v1.field).default_value.string_value = "http://localhost:9000"];
+
+  // OIDC browser client ID.
+  string client_id = 2;
+
+  // OIDC scopes requested during login.
+  repeated string scopes = 3 [(gofra.config.v1.field).default_value.string_list = {values: ["openid", "profile", "email"]}];
+
+  // Auth callback path.
+  string redirect_path = 4 [(gofra.config.v1.field).default_value.string_value = "/auth/callback"];
+
+  // Redirect path after logout.
+  string post_logout_redirect_path = 5 [(gofra.config.v1.field).default_value.string_value = "/"];
+}

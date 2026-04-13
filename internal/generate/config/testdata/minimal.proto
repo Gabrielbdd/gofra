@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package testapp.config.v1;
+
+import "gofra/config/v1/annotations.proto";
+
+message Config {
+  AppConfig app = 1;
+  PublicConfig public = 2;
+}
+
+message AppConfig {
+  // HTTP server port.
+  int32 port = 1 [(gofra.config.v1.field).default_value.int32_value = 3000];
+
+  // Application name.
+  string name = 2;
+}
+
+message PublicConfig {
+  // Display name shown in the browser.
+  string app_name = 1 [(gofra.config.v1.field).default_value.string_value = "myapp"];
+
+  // Base URL for API calls from the frontend.
+  string api_base_url = 2;
+}

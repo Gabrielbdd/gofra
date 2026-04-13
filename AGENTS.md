@@ -50,12 +50,15 @@ Current runnable commands:
 
 - `go test ./...` runs the current Go test suite.
 - `go run ./cmd/gofra --help` shows the current CLI entrypoint shape.
+- `mise run test` runs the same test suite through the repo task runner.
+- `mise run new -- ../myapp` generates a starter-backed application for manual testing.
+- `mise run smoke:new` generates a temporary app and runs `go test ./...` inside it.
 - `go run ./cmd/gofra-gen-runtimeconfig --help` shows the current generator
   entrypoint shape.
 
 Target workflow:
 
-- `mise install` installs pinned Go, Node, buf, and generator tooling.
+- `mise install` installs the pinned Go toolchain for this repo.
 - `docker compose up -d` starts local infrastructure such as Postgres, Restate, and Zitadel.
 - `mise run gen` regenerates code from protobuf and SQL definitions.
 - `mise run dev` runs the Go app and Vite frontend locally.

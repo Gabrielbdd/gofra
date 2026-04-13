@@ -1,0 +1,35 @@
+[tools]
+go = "1.23"
+
+[tasks.test]
+description = "Run the framework test suite"
+run = "env GOCACHE=${GOCACHE:-/tmp/gofra-gocache} go test ./..."
+
+[tasks.gofra]
+description = "Show the current gofra CLI help"
+run = "env GOCACHE=${GOCACHE:-/tmp/gofra-gocache} go run ./cmd/gofra --help"
+
+[tasks."gen:runtimeconfig"]
+description = "Show the current runtime-config generator help"
+run = "env GOCACHE=${GOCACHE:-/tmp/gofra-gocache} go run ./cmd/gofra-gen-runtimeconfig --help"
+
+[tasks.new]
+description = "Create a new app from the canonical starter"
+run = "env GOCACHE=${GOCACHE:-/tmp/gofra-gocache} go run ./cmd/gofra new {{arg(i=0)}}"
+
+[tasks."new:module"]
+description = "Create a new app from the canonical starter with an explicit Go module path"
+run = "env GOCACHE=${GOCACHE:-/tmp/gofra-gocache} go run ./cmd/gofra new --module {{arg(i=1)}} {{arg(i=0)}}"
+
+[tasks."smoke:new"]
+description = "Generate a temporary app from the starter and verify it with go test"
+run = '''
+set -eu
+tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/gofra-smoke-XXXXXX")"
+env GOCACHE="${GOCACHE:-/tmp/gofra-gocache}" go run ./cmd/gofra new "$tmpdir"
+(
+  cd "$tmpdir"
+  env GOCACHE="${GOCACHE:-/tmp/gofra-gocache}" go test ./...
+)
+printf 'generated app verified at %s\n' "$tmpdir"
+'''

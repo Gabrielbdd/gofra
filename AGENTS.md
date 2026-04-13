@@ -97,7 +97,13 @@ the docs and commit message make that scope explicit.
 
 Follow the existing Conventional Commit style, for example `docs: initial docs`. Use clear prefixes such as `docs:`, `feat:`, `fix:`, and `chore:`.
 
-Commit after every discrete change set requested by the user. Do not batch
-multiple finished doc changes into one later commit.
+Always commit when you finish a task. Do not wait for the user to ask you to
+commit. Commit after every discrete change set — do not batch multiple
+finished changes into one later commit. If a task produces multiple logical
+changes (e.g., a new package plus updated docs), prefer one commit per logical
+unit rather than one giant commit at the end.
+
+Before committing, run `go test ./...` (and `mise run smoke:new` when scaffold
+files changed) to verify the build is green. Do not commit broken code.
 
 Pull requests should explain the framework decision being changed, list affected docs, and call out any impact on generated code, developer workflow, or architecture. If a PR changes commands, ports, project layout, or framework defaults, update the relevant documentation in the same change.

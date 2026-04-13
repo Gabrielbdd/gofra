@@ -30,7 +30,7 @@ Every developer gets the same Go, Node, buf, and protoc plugin versions.
 ```toml
 [tasks.gen]
 description = "Generate all code from proto + SQL"
-depends = ["gen:go", "gen:ts", "gen:sql"]
+depends = ["gen:go", "gen:ts", "gen:runtimeconfig", "gen:sql"]
 
 [tasks."gen:go"]
 run = "buf generate"
@@ -41,6 +41,11 @@ outputs = ["gen/**/*.go"]
 run = "cd web && npx buf generate"
 sources = ["proto/**/*.proto"]
 outputs = ["web/src/gen/**/*.ts"]
+
+[tasks."gen:runtimeconfig"]
+run = "go run ./cmd/forge-gen-runtimeconfig"
+sources = ["proto/**/*runtime_config.proto", "config/config.go"]
+outputs = ["config/public_config_gen.go", "web/src/gen/runtime/runtime-config.ts"]
 
 [tasks."gen:sql"]
 run = "sqlc generate"
@@ -83,6 +88,14 @@ run = "goose -dir db/migrations create {{arg(i=0)}} sql"
 
 Tasks are incremental — `sources` and `outputs` track what changed. `mise run gen`
 only regenerates when proto or SQL files change.
+
+The runtime-config generator runs after protobuf codegen and emits:
+
+- typed Go binding code in `config/public_config_gen.go`
+- a generated TS loader in `web/src/gen/runtime/`
+
+This keeps the public browser-config contract synchronized across Go and
+TypeScript without handwritten parallel types.
 
 ### Developer Workflow
 

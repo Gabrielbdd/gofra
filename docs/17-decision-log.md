@@ -189,3 +189,9 @@
 | 121 | 25-second budget within 30-second K8s grace | 5-second safety margin before SIGKILL. | [12](12-graceful-shutdown.md) |
 | 122 | Second signal force-kills | `stop()` restores default. Ctrl+C twice = immediate exit. | [12](12-graceful-shutdown.md) |
 | 123 | `OnShutdown` callback for resource cleanup | OTEL flush + DB close. Framework provides hook, main.go provides logic. | [12](12-graceful-shutdown.md) |
+
+## Testing (Decisions #133)
+
+| # | Decision | Rationale | Doc |
+|---|----------|-----------|-----|
+| 133 | Runtime config tested at generator, handler, and frontend-loader boundaries | Public browser config spans Go, generated code, and SPA startup. One test layer is not enough. | [16](16-testing.md) |

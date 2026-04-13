@@ -83,8 +83,28 @@ import { runtimeConfig } from "@/gen/runtime/runtime-config";
 export { runtimeConfig };
 ```
 
-The generated loader reads `window.__FORGE_CONFIG__`, validates/parses it using
-the generated protobuf schema, and exports a typed object.
+The generated frontend files are:
+
+- `web/src/gen/runtime/runtime_config_pb.ts` for the runtime-config message and
+  schema
+- `web/src/gen/runtime/runtime-config.ts` for the generated loader APIs
+- `web/src/gen/runtime/runtime-config.global.d.ts` for the `Window`
+  augmentation of `__FORGE_CONFIG__`
+- `web/src/lib/runtime-config.ts` as the app-owned re-export layer
+
+The generated loader reads `window.__FORGE_CONFIG__`, treats it as `unknown`,
+validates/parses it using the generated protobuf schema, and exports a typed,
+immutable object.
+
+The generated TypeScript APIs are:
+
+```ts
+export type RuntimeConfig;
+export const runtimeConfig: RuntimeConfig;
+export function loadRuntimeConfig(): RuntimeConfig;
+export function validateRuntimeConfig(value: unknown): RuntimeConfig;
+export function isRuntimeConfig(value: unknown): value is RuntimeConfig;
+```
 
 On the backend, Forge also generates a convention-first resolver. Proto fields
 bind to `config.Config` by matching nested names:
@@ -127,6 +147,10 @@ custom Go code for dynamic values.
 
 **Reason for `config.js` instead of a public RPC**: the browser gets runtime
 config synchronously before the SPA boots, with the same path in dev and prod.
+
+**Reason for fail-fast runtime-config loading**: the SPA should not mount with
+missing or malformed deployment config. Invalid public config is a startup
+error, not a partially recoverable UI state.
 
 ## Development Mode
 
@@ -194,7 +218,9 @@ web/
 │           ├── posts_pb.ts
 │           └── posts-PostsService_connectquery.ts
 │       └── runtime/
-│           └── runtime-config.ts
+│           ├── runtime_config_pb.ts
+│           ├── runtime-config.ts
+│           └── runtime-config.global.d.ts
 └── dist/                    # Built assets (gitignored, embedded in Go)
 ```
 

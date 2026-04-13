@@ -95,6 +95,35 @@ const mockTransport = createRouterTransport(({ service }) => {
 });
 ```
 
+### Runtime Config Tests
+
+The generated runtime-config feature has its own test surface on both sides.
+
+Go-side tests:
+
+- generator golden tests for nested field binding, slices, and missing-field
+  rejection
+- resolver tests for clone semantics, mutator ordering, and error propagation
+- handler tests for `GET`/`HEAD`, content type, `Cache-Control: no-store`, and
+  the JavaScript envelope `window.__FORGE_CONFIG__ = ...`
+- `httptest` integration tests that resolve a real `config.Config`, fetch
+  `/_forge/config.js`, and parse the payload back into the runtime proto
+
+Frontend tests:
+
+- unit tests for `loadRuntimeConfig()` and `validateRuntimeConfig()` with a
+  valid payload
+- failure tests for missing `window.__FORGE_CONFIG__`, wrong field types, and
+  missing required auth fields
+- unit tests confirming `auth.ts` and `transport.ts` read from
+  `runtimeConfig`, not `import.meta.env`
+- app-boot tests that fail fast on invalid runtime config instead of mounting a
+  partially configured SPA
+
+**Reason for dedicated runtime-config tests**: this feature sits between Go
+config, generated code, JavaScript bootstrapping, and browser auth. It needs
+tests at the generator, handler, and frontend-loader boundaries.
+
 ## Test Database
 
 `forge.TestDB(t)` creates an isolated test database for each test:
@@ -121,3 +150,4 @@ factory.CreateMany[models.Post](db, 10) // 10 posts with default values
 |---|----------|-----------|
 | 30 | `RestateRecorder` for handler tests | Fast HTTP tests without Docker. Verify dispatch, not execution. |
 | 31 | Docker-based Restate integration tests | Durable handlers need real journal. Tagged `integration`. |
+| 133 | Runtime config tested at generator, handler, and frontend-loader boundaries | Public browser config spans Go, generated code, and SPA startup. One test layer is not enough. |

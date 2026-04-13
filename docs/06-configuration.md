@@ -442,6 +442,15 @@ convention:
 - repeated fields map to slices
 - only fields present in the runtime-config proto are exposed
 
+Generated and handwritten responsibilities are split cleanly:
+
+- `config/config.go` remains the handwritten server config root
+- `config/public_config.go` contains app-owned wiring and optional custom logic
+- `config/public_config_gen.go` is generated and contains the typed binder from
+  `config.Config` to `runtimev1.RuntimeConfig`
+- `runtimeconfig/` contains the reusable resolver and HTTP handler behavior
+- `cmd/forge-gen-runtimeconfig/main.go` is the codegen entrypoint
+
 ```go
 resolver := runtimeconfig.NewResolver(appCfg)
 mux.Handle("/_forge/config.js", runtimeconfig.Handler(resolver))
@@ -449,6 +458,30 @@ mux.Handle("/_forge/config.js", runtimeconfig.Handler(resolver))
 
 This generated code uses typed Go field access, not runtime reflection. If a
 bound config path stops existing, the generated code fails to compile.
+
+The generator contract is:
+
+- input: runtime-config proto descriptor plus the Go config package/type
+- output: typed Go code that assigns `cfg.Auth.Issuer`, `cfg.Auth.ClientID`,
+  and other direct selectors into the runtime proto
+- failure mode: generation stops if a public proto field cannot be mapped by
+  convention
+
+The reusable Go API is:
+
+```go
+type Resolver interface {
+    Resolve(context.Context, *http.Request) (*runtimev1.RuntimeConfig, error)
+}
+
+type Mutator func(context.Context, *http.Request, *runtimev1.RuntimeConfig) error
+
+type Option func(*resolver)
+
+func NewResolver(cfg *config.Config, opts ...Option) Resolver
+func WithMutator(Mutator) Option
+func Handler(r Resolver) http.Handler
+```
 
 For request-aware public config, the application can add a mutator:
 
@@ -474,6 +507,9 @@ func RuntimeConfigJS(msg proto.Message) http.HandlerFunc {
     }
 }
 ```
+
+The handler accepts only `GET` and `HEAD`. Handler failures return `500` and do
+not emit partial config.
 
 **Reason for a dedicated public proto instead of exposing env vars directly**:
 the server config contains secrets and server-only settings. The browser should

@@ -196,6 +196,11 @@ value proposition, not an afterthought.
 **Why this is release-critical**: Forge should only promise behavior it can
 verify repeatedly.
 
+**Progress**: The runtime-config feature now has a documented test shape across
+generator output, Go resolver/handler behavior, and frontend loader/bootstrap
+behavior. The broader auth, idempotency, workflow, and tenancy matrix is still
+open.
+
 ---
 
 ## Suggested Order Of Work

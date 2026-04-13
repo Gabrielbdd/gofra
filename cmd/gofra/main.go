@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	configgen "databit.com.br/gofra/internal/generate/config"
 	runtimeconfiggen "databit.com.br/gofra/internal/generate/runtimeconfig"
 	"databit.com.br/gofra/internal/scaffold"
 )
@@ -86,6 +87,12 @@ func runGenerate(args []string) error {
 	}
 
 	switch args[0] {
+	case "config":
+		err := configgen.Run(args[1:], os.Stderr)
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		return err
 	case "runtime-config":
 		err := runtimeconfiggen.Run(args[1:], os.Stderr)
 		if errors.Is(err, flag.ErrHelp) {
@@ -113,5 +120,6 @@ func resolveFramework(frameworkDir string) (scaffold.Framework, error) {
 func usage(w *os.File) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  gofra new [--module module/path] [--framework-dir /path/to/gofra] <directory>")
+	fmt.Fprintln(w, "  gofra generate config [flags] <proto-file>")
 	fmt.Fprintln(w, "  gofra generate runtime-config [flags]")
 }

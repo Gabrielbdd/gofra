@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package myapp.runtime.v1;
+
+message RuntimeConfig {
+  string api_base_url = 1;
+  AuthConfig auth = 2;
+}
+
+message AuthConfig {
+  string issuer = 1;
+  string client_id = 2;
+  repeated string scopes = 3;
+  string redirect_path = 4;
+  string post_logout_redirect_path = 5;
+}

@@ -172,7 +172,10 @@ requirement for framework usability.
 **Progress**: The frontend runtime-config and local browser-entrypoint story
 are now aligned on one model: browser hits Go on `:3000`, Go proxies Vite in
 dev, and public browser config comes from `/_gofra/config.js`. Tool/version
-pinning and Restate endpoint cleanup are still open.
+pinning and Restate endpoint cleanup are still open. An initial code scaffold
+now exists for this slice in the root `runtimeconfig/` package, the
+`cmd/gofra-gen-runtimeconfig` entrypoint, and the `examples/basic/` dogfood
+app, but full proto-driven generation and dev-task integration are still open.
 
 ### 9. Operational Baseline
 
@@ -198,8 +201,9 @@ verify repeatedly.
 
 **Progress**: The runtime-config feature now has a documented test shape across
 generator output, Go resolver/handler behavior, and frontend loader/bootstrap
-behavior. The broader auth, idempotency, workflow, and tenancy matrix is still
-open.
+behavior. The initial scaffold now includes basic Go tests for the shared
+runtime-config resolver, handler, and generator renderers. The broader auth,
+idempotency, workflow, and tenancy matrix is still open.
 
 ---
 

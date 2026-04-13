@@ -1,0 +1,6 @@
+gofra-app
+*.out
+.DS_Store
+
+examples/basic/web/dist/
+examples/basic/web/node_modules/

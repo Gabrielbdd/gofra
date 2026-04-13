@@ -376,6 +376,11 @@ func resolveDescriptorByPath(fd protoreflect.FileDescriptor, path protoreflect.S
 
 func cleanComment(s string) string {
 	s = strings.TrimSpace(s)
+	// Use only the first line for generated code comments.
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		s = s[:i]
+	}
+	s = strings.TrimSpace(s)
 	// Remove trailing period for flag descriptions.
 	s = strings.TrimSuffix(s, ".")
 	return s

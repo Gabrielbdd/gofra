@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package __GOFRA_PROTO_PACKAGE__.config.v1;
+
+import "gofra/config/v1/annotations.proto";
+
+// Config is the root configuration for the application.
+message Config {
+  // Server configuration.
+  AppConfig app = 1;
+
+  // Public browser-safe configuration served at /_gofra/config.js.
+  PublicConfig public = 2;
+}
+
+// AppConfig holds server-side application settings.
+message AppConfig {
+  // Application name, used in logs and runtime display.
+  string name = 1 [(gofra.config.v1.field).default_value.string_value = "__GOFRA_APP_NAME__"];
+
+  // HTTP server port.
+  int32 port = 2 [(gofra.config.v1.field).default_value.int32_value = 3000];
+}
+
+// PublicConfig holds browser-safe configuration delivered to the frontend.
+// All fields in this message and its children are served to the browser.
+message PublicConfig {
+  // Display name shown in the browser.
+  string app_name = 1 [(gofra.config.v1.field).default_value.string_value = "__GOFRA_APP_NAME__"];
+
+  // Base URL for API calls from the frontend.
+  string api_base_url = 2 [(gofra.config.v1.field).default_value.string_value = "http://localhost:3000"];
+
+  // Authentication configuration.
+  PublicAuthConfig auth = 3;
+}
+
+// PublicAuthConfig holds browser-safe OIDC authentication settings.
+message PublicAuthConfig {
+  // OIDC issuer URL.
+  string issuer = 1 [(gofra.config.v1.field).default_value.string_value = "http://localhost:9000"];
+
+  // OIDC browser client ID.
+  string client_id = 2 [(gofra.config.v1.field).default_value.string_value = "__GOFRA_APP_NAME__-web"];
+
+  // OIDC scopes requested during login.
+  repeated string scopes = 3 [(gofra.config.v1.field).default_value.string_list = {values: ["openid", "profile", "email"]}];
+
+  // Auth callback path.
+  string redirect_path = 4 [(gofra.config.v1.field).default_value.string_value = "/auth/callback"];
+
+  // Redirect path after logout.
+  string post_logout_redirect_path = 5 [(gofra.config.v1.field).default_value.string_value = "/"];
+}

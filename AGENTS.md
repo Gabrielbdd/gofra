@@ -4,15 +4,55 @@
 
 This repository defines a modern, batteries-included Go framework inspired by Phoenix, Laravel, and Rails. The framework aims to be explicit, productive, and operationally robust, with durable execution, typed APIs, integrated frontend support, and strong local tooling. The current phase is documentation-first: contributions mainly refine architecture, conventions, and workflow before full implementation lands.
 
+This is no longer a docs-only repo. Early implementation slices now live beside
+the design docs. Work may touch:
+
+- architecture and product docs in `docs/`
+- reusable framework packages at the repo root
+- generator code under `internal/` and `cmd/`
+- dogfood example apps under `examples/`
+
 ## Project Structure & Module Organization
 
-All active work lives in `docs/`. Start at `docs/00-index.md`, then follow the numbered design set by subsystem: foundations, architecture, API layer, database, auth, tooling, testing, and decision log. Keep new documents in the existing `NN-topic.md` format and place them where they fit the design map.
+Start at `docs/00-index.md`, then follow the numbered design set by subsystem:
+foundations, architecture, API layer, database, auth, tooling, testing, and
+decision log. Keep new documents in the existing `NN-topic.md` format and
+place them where they fit the design map.
 
-The intended framework structure is documented in `docs/02-system-architecture.md`: `proto/` for contracts, `app/` for RPC handlers and Restate components, `db/` for migrations and queries, `web/` for the React SPA, `gen/` for generated code, and `cmd/app` for the executable entrypoint.
+The source of truth for repo layout is `docs/02-system-architecture.md`. It
+documents two distinct structures that must not be conflated:
+
+- the **framework repo layout**, where reusable packages such as
+  `runtimeconfig/`, generator internals in `internal/`, codegen entrypoints in
+  `cmd/`, and dogfood apps in `examples/` live
+- the **generated app layout**, which is the target output of future
+  `gofra new`
+
+When adding implementation, prefer this sequence:
+
+1. Add or refine the framework contract in the docs.
+2. Implement reusable framework code at the repo root.
+3. Prove the slice end to end in `examples/`.
+4. Extract it into general-purpose project generation only after the shape is
+   stable.
+
+Do not treat the framework repo itself as if it were a generated application.
+`examples/basic` is a dogfood integration target, not the canonical user app.
 
 ## Build, Test, and Development Commands
 
-The implementation is still being designed, but the target workflow is already defined:
+Implementation is still early. Some commands are real today, while others are
+documented target workflow for the full framework.
+
+Current runnable commands:
+
+- `go test ./...` runs the current Go test suite.
+- `go run ./examples/basic/cmd/app` runs the dogfood example app for the
+  runtime-config slice.
+- `go run ./cmd/gofra-gen-runtimeconfig --help` shows the current generator
+  entrypoint shape.
+
+Target workflow:
 
 - `mise install` installs pinned Go, Node, buf, and generator tooling.
 - `docker compose up -d` starts local infrastructure such as Postgres, Restate, and Zitadel.
@@ -31,9 +71,23 @@ If a change advances or completes a tracked readiness item, update
 `docs/18-readiness-checklist.md` in the same change so the checklist reflects
 current progress.
 
+If implementation changes the framework layout, generator shape, developer
+workflow, or any kept v1 promise, update the relevant architecture docs in the
+same change. In most cases this means reviewing:
+
+- `docs/02-system-architecture.md`
+- `docs/14-tooling.md`
+- `docs/17-decision-log.md`
+- `docs/18-readiness-checklist.md`
+
 ## Testing & Validation Expectations
 
 Use `docs/16-testing.md` as the source of truth for the framework’s testing model: unit tests, Connect handler tests, and `integration`-tagged Restate tests. When proposing new behavior, document how it should be tested and whether it affects generators, runtime behavior, or local developer ergonomics.
+
+For scaffold work, verify the narrowest realistic slice instead of pretending
+the whole framework exists already. Example: a reusable package plus one
+dogfood app plus focused tests is a valid first step if the docs and commit
+message make that scope explicit.
 
 ## Commit & Pull Request Guidelines
 

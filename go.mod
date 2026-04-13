@@ -12,6 +12,7 @@ require (
 	github.com/knadh/koanf/providers/structs v1.0.0
 	github.com/knadh/koanf/v2 v2.3.4
 	github.com/spf13/pflag v1.0.10
+	google.golang.org/protobuf v1.36.11
 )
 
 require (

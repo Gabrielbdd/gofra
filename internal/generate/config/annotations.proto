@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package gofra.config.v1;
+
+option go_package = "databit.com.br/gofra/internal/generate/config/gofraconfig";
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FieldOptions {
+  optional FieldConfig field = 51000;
+}
+
+// FieldConfig carries Gofra-specific metadata on a config proto field.
+// Standard concerns use standard mechanisms: descriptions come from proto
+// comments, validation from buf/validate annotations.
+message FieldConfig {
+  // Default value applied when no YAML, env, or flag override is present.
+  optional DefaultValue default_value = 1;
+
+  // Marks the field as containing sensitive data. Secret fields are excluded
+  // from CLI flag registration and YAML example generation.
+  optional bool secret = 2;
+}
+
+// DefaultValue holds a typed default. The oneof kind must match the proto
+// field's scalar type. For repeated string fields, use string_list.
+message DefaultValue {
+  oneof kind {
+    string string_value = 1;
+    int32 int32_value = 2;
+    int64 int64_value = 3;
+    bool bool_value = 4;
+    double double_value = 5;
+    StringList string_list = 10;
+  }
+}
+
+// StringList is used for repeated string field defaults.
+message StringList {
+  repeated string values = 1;
+}

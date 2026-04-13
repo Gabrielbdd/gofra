@@ -35,12 +35,12 @@ implementation. Fix these before they mislead contributors.
 
 ### README.md
 
-- [ ] Line 112: references `internal/generate/runtimeconfig/` — the actual
+- [x] Line 112: references `internal/generate/runtimeconfig/` — the actual
   path is `internal/generate/config/`. Update the repo layout section.
 
 ### docs/02-system-architecture.md
 
-- [ ] Lines 347-357: "Today `gofra new` copies one minimal runnable starter
+- [x] Lines 347-357: "Today `gofra new` copies one minimal runnable starter
   that includes" lists files that do not match the current starter output.
   The actual starter produces `proto/<app>/config/v1/config.proto` (not
   `proto/<app>/runtime/v1/`), has no `config/` directory (config code is
@@ -52,30 +52,31 @@ implementation. Fix these before they mislead contributors.
 
 ## 1. Runtime Packages (`runtime/`)
 
-Reusable framework code that generated apps import. Today only
-`runtime/config` exists.
+Reusable framework code that generated apps import. Today `runtime/config`,
+`runtime/health`, and `runtime/serve` exist.
 
 ### 1.1 Server Lifecycle
 
 Source docs: [02-system-architecture.md](02-system-architecture.md),
 [12-graceful-shutdown.md](12-graceful-shutdown.md)
 
-- [ ] `runtime/serve` — `gofra.Serve(ctx, ServeConfig{...})` main entrypoint
-  - [ ] Signal handling (SIGTERM/SIGINT via `signal.NotifyContext`)
-  - [ ] Four-phase shutdown: readiness drain (2s) → HTTP (15s) → Restate (5s) → resources (3s)
-  - [ ] Second-signal force kill escalation
-  - [ ] `OnShutdown` callback for OTEL flush + DB close
+- [x] `runtime/serve` — `runtimeserve.Serve(ctx, Config{...})` main entrypoint
+  - [x] Signal handling (SIGTERM/SIGINT via `signal.NotifyContext`)
+  - [x] Three-phase shutdown (HTTP-only): readiness drain (2s) → HTTP (15s) → resources (3s)
+  - [ ] Fourth phase (Restate stop) — deferred until Restate package lands
+  - [x] Second-signal force kill escalation
+  - [x] `OnShutdown` callback for OTEL flush + DB close
 
 ### 1.2 Health Checks
 
 Source doc: [11-health-checks.md](11-health-checks.md)
 
-- [ ] `runtime/health` — `HealthChecker` struct
-  - [ ] `GET /healthz/startup` — initialization complete (503 → 200)
-  - [ ] `GET /healthz/live` — process alive (always 200)
-  - [ ] `GET /healthz/ready` — traffic ready (DB ping + Restate HEAD, 2s timeout)
-  - [ ] `SetNotReady()` for shutdown drain
-  - [ ] JSON response bodies for debugging
+- [x] `runtime/health` — `Checker` struct
+  - [x] `GET /healthz/startup` — initialization complete (503 → 200)
+  - [x] `GET /healthz/live` — process alive (always 200)
+  - [x] `GET /healthz/ready` — generic `CheckFunc` checks with 2s timeout
+  - [x] `SetNotReady()` for shutdown drain
+  - [x] JSON response bodies for debugging
 
 ### 1.3 Error Helpers
 
@@ -165,14 +166,14 @@ Today the starter produces: `cmd/app/main.go`, `go.mod`, `gofra.yaml`,
 Source docs: [02-system-architecture.md](02-system-architecture.md),
 [12-graceful-shutdown.md](12-graceful-shutdown.md)
 
-- [ ] `cmd/app/main.go` uses chi router instead of raw `http.ServeMux`
+- [x] `cmd/app/main.go` uses chi router instead of raw `http.ServeMux`
 - [ ] chi `mux.Use(...)` middleware: CORS, request ID, panic recovery (HTTP-level concerns)
 - [ ] Connect `WithInterceptors(...)`: otelconnect, protovalidate, auth interceptor (RPC-level concerns — these receive typed proto requests, not raw HTTP)
 - [ ] Two listeners: `:3000` (HTTP/Connect) and `:9080` (Restate endpoint)
-- [ ] Graceful shutdown via `gofra.Serve()` instead of `http.ListenAndServe`
+- [x] Graceful shutdown via `runtimeserve.Serve()` instead of `http.ListenAndServe`
 - [ ] DB pool initialization on startup
 - [ ] OTEL setup on startup
-- [ ] Health check endpoint registration
+- [x] Health check endpoint registration
 - [ ] Restate handler binding
 
 ### 2.2 Infrastructure Files

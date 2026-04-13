@@ -346,15 +346,21 @@ but it is intentionally smaller than the full target layout below.
 
 Today `gofra new` copies one minimal runnable starter that includes:
 
-- `cmd/app/` for the HTTP entrypoint
-- `config/` for typed config loading from defaults, `gofra.yaml`,
-  `GOFRA_*` env vars, and CLI flags, plus public runtime-config wiring
-- `config/public_config_types_gen.go` as placeholder generated code for the
-  reserved `public.*` config subtree
-- `gen/<app>/runtime/v1/` for checked-in placeholder runtime-config Go types
-- `proto/<app>/runtime/v1/` for the public runtime-config contract stub
-- `web/` for a minimal embedded shell
-- `gofra.yaml` and `go.mod`
+- `cmd/app/main.go` — HTTP server using chi, `runtime/health` probes, and
+  `runtime/serve` for graceful shutdown
+- `proto/<app>/config/v1/config.proto` — typed config schema with gofra
+  annotations and a `public` subtree for browser-safe runtime config
+- `web/embed.go` and `web/index.html` — minimal embedded web shell
+- `gofra.yaml` — project config overrides (app name, port)
+- `go.mod` — module with framework dependency and chi
+- `mise.toml` — `generate` task (runs `gofra generate config` from proto)
+  and `dev` task
+
+After `mise run generate`, the starter also has:
+
+- `config/config_gen.go` — generated Go config structs and defaults
+- `config/load_gen.go` — generated `Load()` with pflag registration
+- `config/public_gen.go` — generated public config binder and HTTP handler
 
 The generated `go.mod` currently includes a local `replace` directive back to
 the framework checkout that created the app. This is a temporary development

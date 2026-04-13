@@ -151,14 +151,22 @@ framework's main differentiators. It must be correct, not just convenient.
 
 ### 6. Truthful Startup And Shutdown Semantics
 
-- [ ] Make startup readiness reflect real listener bind success and dependency
+- [x] Make startup readiness reflect real listener bind success and dependency
   readiness.
-- [ ] Define the precise contract for health endpoints and shutdown drains.
+- [x] Define the precise contract for health endpoints and shutdown drains.
 - [ ] Document how Restate endpoint lifecycle interacts with application
   readiness and rolling deploys.
 
 **Why this is release-critical**: broken lifecycle semantics produce bad
 rollouts even when the application code is correct.
+
+**Progress**: `runtime/health` provides startup/liveness/readiness probes with
+generic `CheckFunc` checks. `runtime/serve` owns `net.Listen` and marks
+startup ready only after bind succeeds, then runs a three-phase shutdown
+(readiness drain → HTTP shutdown → resource cleanup). The starter mounts
+health endpoints on a root `http.ServeMux` structurally outside the chi app
+router. Restate lifecycle integration is still open — it will add a fourth
+shutdown phase when the Restate package lands.
 
 ### 7. Production Security Baseline
 

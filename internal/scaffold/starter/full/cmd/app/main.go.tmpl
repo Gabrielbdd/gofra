@@ -1,12 +1,18 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 
-	"__GOFRA_FRAMEWORK_MODULE__/runtime/config"
+	"github.com/go-chi/chi/v5"
+
+	runtimeconfig "__GOFRA_FRAMEWORK_MODULE__/runtime/config"
+	runtimehealth "__GOFRA_FRAMEWORK_MODULE__/runtime/health"
+	runtimeserve "__GOFRA_FRAMEWORK_MODULE__/runtime/serve"
+
 	"__GOFRA_MODULE__/config"
 	"__GOFRA_MODULE__/web"
 )
@@ -18,14 +24,30 @@ func main() {
 		os.Exit(1)
 	}
 
-	mux := http.NewServeMux()
-	mux.Handle(runtimeconfig.DefaultPath, config.PublicConfigHandler(cfg))
-	mux.Handle("/", web.Handler())
+	health := runtimehealth.New()
+
+	// Health endpoints on the root mux, structurally outside app middleware.
+	root := http.NewServeMux()
+	root.Handle("/healthz/startup", health.StartupHandler())
+	root.Handle("/healthz/live", health.LivenessHandler())
+	root.Handle("/healthz/ready", health.ReadinessHandler())
+
+	// App router — future middleware (CORS, recovery, etc.) mounts here.
+	app := chi.NewRouter()
+	app.Handle(runtimeconfig.DefaultPath, config.PublicConfigHandler(cfg))
+	app.Handle("/*", web.Handler())
+
+	root.Handle("/", app)
 
 	addr := fmt.Sprintf(":%d", cfg.App.Port)
-	slog.Info("starting app", "app", cfg.App.Name, "addr", addr, "runtime_config_path", runtimeconfig.DefaultPath)
+	slog.Info("starting app", "app", cfg.App.Name, "addr", addr)
 
-	if err := http.ListenAndServe(addr, mux); err != nil {
-		slog.Error("server stopped", "error", err)
+	if err := runtimeserve.Serve(context.Background(), runtimeserve.Config{
+		Handler: root,
+		Addr:    addr,
+		Health:  health,
+	}); err != nil {
+		slog.Error("server stopped with error", "error", err)
+		os.Exit(1)
 	}
 }

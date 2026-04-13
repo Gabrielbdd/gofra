@@ -107,9 +107,10 @@ The important directories right now are:
 - `cmd/gofra/`: the public CLI entrypoint
 - `internal/scaffold/`: starter copy logic and generation tests
 - `internal/scaffold/starter/full/`: the canonical generated-app source tree
-- `runtime/config/`: reusable framework code already exposed as a library
-- `internal/generate/runtimeconfig/`: the slice-specific generator internals
-  for runtime config
+- `runtime/config/`: reusable config loading and public runtime-config handler
+- `runtime/health/`: HTTP health check probes (startup, liveness, readiness)
+- `runtime/serve/`: HTTP server lifecycle with graceful shutdown
+- `internal/generate/config/`: the config code generator internals
 - `docs/`: the architecture and product contract
 
 The intended long-term organization is:

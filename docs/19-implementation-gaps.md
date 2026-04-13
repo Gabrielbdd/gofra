@@ -4,7 +4,8 @@
 >
 > This document tracks what is documented in the design docs but not yet
 > implemented in the framework runtime, the generated project (`gofra new`),
-> the CLI generators, or end-user documentation. It complements
+> the CLI generators, or end-user documentation. It also tracks places where
+> existing docs have drifted from current implementation. It complements
 > [18-readiness-checklist.md](18-readiness-checklist.md) with concrete
 > file-level and feature-level tracking.
 
@@ -15,9 +16,37 @@
 Each section uses a checklist. Mark items as they land. When a section is fully
 complete, add a **Completed** note with the date and relevant commit/PR.
 
+This tracker points at what is missing or drifted. It does not restate
+canonical schemas or API shapes — those live in their source-of-truth docs.
+When an item references a specific contract (config fields, handler
+signatures), follow the link to the authoritative doc rather than relying on
+the summary here.
+
 Items are grouped by subsystem, not by priority. Use the
 [V1 Readiness Checklist](18-readiness-checklist.md) and the suggested order of
 work there to decide what to build next.
+
+---
+
+## 0. Current Doc Drift
+
+Existing docs that describe things inaccurately relative to current
+implementation. Fix these before they mislead contributors.
+
+### README.md
+
+- [ ] Line 112: references `internal/generate/runtimeconfig/` — the actual
+  path is `internal/generate/config/`. Update the repo layout section.
+
+### docs/02-system-architecture.md
+
+- [ ] Lines 347-357: "Today `gofra new` copies one minimal runnable starter
+  that includes" lists files that do not match the current starter output.
+  The actual starter produces `proto/<app>/config/v1/config.proto` (not
+  `proto/<app>/runtime/v1/`), has no `config/` directory (config code is
+  generated post-scaffold via `mise run generate`), and has no
+  `gen/<app>/runtime/v1/` directory. Update the list to match
+  `internal/scaffold/starter/full/`.
 
 ---
 
@@ -137,7 +166,8 @@ Source docs: [02-system-architecture.md](02-system-architecture.md),
 [12-graceful-shutdown.md](12-graceful-shutdown.md)
 
 - [ ] `cmd/app/main.go` uses chi router instead of raw `http.ServeMux`
-- [ ] Middleware chain: CORS → panic recovery → auth interceptor → otelconnect
+- [ ] chi `mux.Use(...)` middleware: CORS, request ID, panic recovery (HTTP-level concerns)
+- [ ] Connect `WithInterceptors(...)`: otelconnect, protovalidate, auth interceptor (RPC-level concerns — these receive typed proto requests, not raw HTTP)
 - [ ] Two listeners: `:3000` (HTTP/Connect) and `:9080` (Restate endpoint)
 - [ ] Graceful shutdown via `gofra.Serve()` instead of `http.ListenAndServe`
 - [ ] DB pool initialization on startup
@@ -177,7 +207,7 @@ Source doc: [03-api-layer.md](03-api-layer.md)
 - [ ] `buf.yaml` — module configuration
 - [ ] `buf.gen.yaml` — codegen config (Go + TypeScript targets)
 - [ ] Example service proto (e.g., `proto/<app>/posts/v1/posts.proto`)
-- [ ] `gen/` directory in `.gitignore`
+- [ ] Decide whether `gen/` is committed or gitignored (current starter commits generated config output per [14-tooling.md](14-tooling.md); buf-generated code may follow the same or a different policy — record the decision in [17-decision-log.md](17-decision-log.md))
 
 ### 2.5 App Directories
 
@@ -188,7 +218,6 @@ Source docs: [02-system-architecture.md](02-system-architecture.md),
 - [ ] `app/rpc/` — with example Connect handler stub
 - [ ] `app/services/` — with example Restate Service stub
 - [ ] `app/authz/permissions.go` — role-permission map skeleton
-- [ ] `app/middleware/` — auth, CORS, recovery wiring
 
 ### 2.6 Frontend (React SPA)
 
@@ -240,12 +269,15 @@ Today only `generate` and `dev` exist. Missing:
 
 Source doc: [06-configuration.md](06-configuration.md)
 
-The config proto today has `app` and `public` sections. Missing:
+The config proto today has `app` and `public` sections. The remaining sections
+defined in the canonical schema ([06-configuration.md](06-configuration.md)
+lines 75-160) are not yet in the starter's config proto. Implement these
+matching the field names and types in that doc exactly:
 
-- [ ] `database` section (host, port, user, password/secret, dbname, sslmode, auto_migrate)
-- [ ] `restate` section (ingress_url, endpoint_port)
-- [ ] `auth` section (issuer, audience, service_account_key/secret)
-- [ ] `observability` section (log_level, otel_endpoint, sampling_ratio)
+- [ ] `database` section (see `DatabaseConfig` in 06-configuration.md)
+- [ ] `restate` section (see `RestateConfig` in 06-configuration.md)
+- [ ] `auth` section (see `AuthConfig` in 06-configuration.md)
+- [ ] `observability` section (see `OTELConfig` in 06-configuration.md)
 
 ---
 

@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"net/http"
 
-	"databit.com.br/gofra/examples/basic/config"
-	basicweb "databit.com.br/gofra/examples/basic/web"
-	"databit.com.br/gofra/runtimeconfig"
+	"__GOFRA_FRAMEWORK_MODULE__/runtimeconfig"
+	"__GOFRA_MODULE__/config"
+	"__GOFRA_MODULE__/web"
 )
 
 func main() {
@@ -15,10 +15,10 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.Handle(runtimeconfig.DefaultPath, config.PublicConfigHandler(cfg))
-	mux.Handle("/", basicweb.Handler())
+	mux.Handle("/", web.Handler())
 
 	addr := fmt.Sprintf(":%d", cfg.App.Port)
-	slog.Info("starting basic example", "addr", addr, "runtime_config_path", runtimeconfig.DefaultPath)
+	slog.Info("starting app", "app", cfg.App.Name, "addr", addr, "runtime_config_path", runtimeconfig.DefaultPath)
 
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		slog.Error("server stopped", "error", err)

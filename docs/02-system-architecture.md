@@ -215,56 +215,81 @@ Two different directory structures matter in Gofra and they must not be mixed
 up:
 
 1. The **framework repository** structure, where reusable runtime packages,
-   generators, docs, and dogfood examples live while Gofra itself is being
+   generators, docs, and the canonical starter source live while Gofra itself is being
    built.
 2. The **generated application** structure, which is what future
    `gofra new myapp` should produce for application teams.
 
 If these are conflated, the framework starts treating its own repo like a fake
-application. That makes generators, examples, and reusable packages harder to
+application. That makes generators, starter evolution, and reusable packages harder to
 evolve coherently.
 
 ### Framework Repository Structure
 
-The framework repo keeps reusable packages at the root and uses `examples/` for
-dogfood applications that prove a slice end to end:
+The framework repo keeps reusable packages at the root and keeps the canonical
+generated-app starter under `internal/projectgen/starter/`:
 
 ```
 gofra/
 ├── go.mod
 ├── runtimeconfig/              # Reusable runtime-config resolver + HTTP handler
 ├── internal/
+│   ├── projectgen/
+│   │   ├── generator.go        # Embedded starter copy + token replacement
+│   │   └── starter/full/       # Canonical generated app source tree
 │   └── runtimeconfiggen/       # Generator internals (not public API)
 ├── cmd/
+│   ├── gofra/
+│   │   └── main.go             # `gofra new` and future project generators
 │   └── gofra-gen-runtimeconfig/
 │       └── main.go             # Codegen entrypoint for the runtime-config slice
-├── examples/
-│   └── basic/
-│       ├── cmd/app/            # Dogfood app entrypoint
-│       ├── config/             # Example server config + generated public binder
-│       ├── proto/              # Example public runtime-config contract
-│       ├── runtime/v1/         # Example Go runtime-config types
-│       └── web/                # Example frontend loader + shell
 ├── docs/                       # Product contract and architecture docs
 ├── AGENTS.md
 └── CLAUDE.md
 ```
 
 **Reason for reusable packages at the repo root**: these are the framework
-APIs that generated apps should import directly. Hiding them inside an example
+APIs that generated apps should import directly. Hiding them inside starter or
 app would invert the dependency direction.
 
 **Reason for `internal/` generator packages**: generator implementation details
 should stay private. The public interface is the `gofra` command, not the code
 that renders templates.
 
-**Reason for `examples/basic/`**: a framework feature should be proven in a
-real runnable app shape before it is generalized into `gofra new` templates.
-The example is both a dogfood target and a future regression fixture.
+**Reason for `internal/projectgen/starter/full/`**: `gofra new` needs one
+canonical source tree now. Keeping it inside the framework repo makes the
+generated app contract explicit, reviewable, and testable without pretending
+that the framework repo itself is the application.
 
-**Reason for vertical slices instead of full scaffolding first**: Gofra is
-still converging on core contracts. Building one slice end to end keeps the
-repo honest without freezing a premature full-project generator.
+**Reason for separating library code from starter-owned files**: reusable
+behavior belongs in framework packages such as `runtimeconfig/`. App-specific
+wiring, checked-in generated placeholders, and shell files belong in the
+starter because they are part of the generated project, not the framework API.
+
+### Current Starter Ownership
+
+The starter is the canonical generated application shape for the current phase,
+but it is intentionally smaller than the full target layout below.
+
+- Framework-owned code stays at the repo root and is imported by generated apps
+  as a library.
+- Starter-owned files live under `internal/projectgen/starter/full/` and are
+  copied into new applications by `gofra new`.
+- Future post-create generators will write additional app-owned files into the
+  generated project after the base starter contract is stable.
+
+Today `gofra new` copies one minimal runnable starter that includes:
+
+- `cmd/app/` for the HTTP entrypoint
+- `config/` for typed config plus runtime-config wiring
+- `gen/<app>/runtime/v1/` for checked-in placeholder runtime-config Go types
+- `proto/<app>/runtime/v1/` for the public runtime-config contract stub
+- `web/` for a minimal embedded shell
+- `gofra.yaml` and `go.mod`
+
+The generated `go.mod` currently includes a local `replace` directive back to
+the framework checkout that created the app. This is a temporary development
+contract until the framework module is published.
 
 ### Generated Application Structure
 
@@ -1012,7 +1037,11 @@ need to be compiled before running any task. mise is a standalone tool that
 reads a TOML file. Developers can inspect and modify tasks without touching Go
 code.
 
-### gofra CLI (code generation only)
+### gofra CLI (project bootstrap + code generation)
+
+```bash
+gofra new myapp                            # copy the canonical starter into ./myapp
+```
 
 ```bash
 gofra generate service ProcessPodcast     # → app/services/process_podcast.go
@@ -1022,10 +1051,11 @@ gofra generate proto posts               # → proto/myapp/posts/v1/posts.proto 
 gofra generate migration create_posts    # → db/migrations/..._create_posts.{up,down}.sql
 ```
 
-**Reason for keeping gofra CLI for generators**: Generators produce Go files
-with correct imports, struct fields, and interface implementations. They
-understand the project structure (where to put files, how to name packages).
-This requires Go code, not shell scripts.
+**Reason for keeping gofra CLI for project bootstrap and generators**:
+`gofra new` needs to copy a starter, rewrite module-aware paths, and wire a
+temporary local framework dependency. Later generators still need Go code for
+correct imports, struct fields, and interface implementations. Tasks remain in
+mise because they are declarative workflow, not project-structure logic.
 
 ---
 
@@ -1176,7 +1206,7 @@ will retry them on the next available instance. No data is lost.
 | 24 | SPA (no SSR) | Decouples frontend and backend. Contract is the proto file. |
 | 25 | `embed.FS` for production | Single binary deployment. No separate file server. |
 | 26 | mise for tools + tasks | Pins tool versions. Replaces Makefile. Incremental builds. |
-| 27 | gofra CLI for generators only | Generators need Go code. Tasks are declarative TOML. |
+| 27 | gofra CLI for project bootstrap and generators | `gofra new` and generators both need Go-aware project structure logic. Tasks stay declarative in TOML. |
 | 28 | Events as map + loop | ~15 lines. Each listener is independently durable via Restate. |
 | 29 | No server-side rendering or templates | API-first. Frontend is replaceable. |
 | 30 | `RestateRecorder` for tests | Fast HTTP tests without Docker. Verify dispatch, not execution. |
@@ -1184,4 +1214,4 @@ will retry them on the next available instance. No data is lost.
 | 32 | Skip AIP-122 (resource names) | Hierarchical names are for infrastructure APIs. Web apps use `id`/`slug`. |
 | 33 | Skip AIP-151 (LRO) | Restate Workflows are strictly more capable. Polling-based LRO is a step backward. |
 | 34 | Skip AIP-127 (transcoding) | Connect handles HTTP mapping automatically. No annotations needed. |
-| 134 | Framework repo uses reusable root packages plus dogfood apps under `examples/` | Keeps framework code distinct from generated app code and gives every slice a runnable integration target before `gofra new` extraction. |
+| 134 | Framework repo uses reusable root packages plus a canonical embedded starter | Keeps framework code distinct from generated app code while giving `gofra new` one testable source of truth. |

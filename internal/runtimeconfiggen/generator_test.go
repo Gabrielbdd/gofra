@@ -12,7 +12,7 @@ func TestRenderGoBinderStub(t *testing.T) {
 
 	output, err := runtimeconfiggen.RenderGoBinderStub(runtimeconfiggen.GoBinderParams{
 		PackageName:   "config",
-		RuntimeImport: "databit.com.br/gofra/examples/basic/runtime/v1",
+		RuntimeImport: "example.com/myapp/gen/myapp/runtime/v1",
 	})
 	if err != nil {
 		t.Fatalf("RenderGoBinderStub() error = %v", err)
@@ -22,7 +22,7 @@ func TestRenderGoBinderStub(t *testing.T) {
 	if !strings.Contains(text, "func BindPublicConfig") {
 		t.Fatalf("output missing binder function:\n%s", text)
 	}
-	if !strings.Contains(text, `runtimev1 "databit.com.br/gofra/examples/basic/runtime/v1"`) {
+	if !strings.Contains(text, `runtimev1 "example.com/myapp/gen/myapp/runtime/v1"`) {
 		t.Fatalf("output missing runtime import:\n%s", text)
 	}
 }

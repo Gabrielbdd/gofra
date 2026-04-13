@@ -113,10 +113,12 @@ directly, and proxies frontend pages/assets to Vite for HMR.
 
 ## gofra CLI
 
-**Decision #27.** The `gofra` binary handles code generation only — tasks that
-need to understand Go project structure, imports, and interface implementations.
+**Decision #27.** The `gofra` binary handles project bootstrap and code
+generation — tasks that need to understand Go project structure, imports, and
+interface implementations.
 
 ```bash
+gofra new myapp                            # → ./myapp from the canonical starter
 gofra generate service ProcessPodcast     # → app/services/process_podcast.go
 gofra generate object ShoppingCart        # → app/objects/shopping_cart.go
 gofra generate workflow OrderCheckout     # → app/workflows/order_checkout.go
@@ -124,32 +126,45 @@ gofra generate proto posts               # → proto/myapp/posts/v1/posts.proto
 gofra generate migration create_posts    # → db/migrations/..._create_posts.sql
 ```
 
-Tasks (build, test, lint, dev) stay in mise. Generators stay in gofra.
+Tasks (build, test, lint, dev) stay in mise. Starter bootstrap and generators
+stay in gofra.
 
 ## Current Scaffold Strategy
 
-Gofra is not at the point where `gofra new` should generate a complete
-production app yet. The current implementation strategy is:
+Gofra now ships one canonical starter so `gofra new` works immediately, but the
+starter is intentionally minimal while the broader framework contract is still
+settling.
+
+The current implementation strategy is:
 
 1. Build a reusable framework slice at the repo root.
-2. Add a dogfood app under `examples/` that exercises that slice end to end.
-3. Use the example as a regression target while the generator contract settles.
-4. Extract the stable shape into `gofra new` only after the slice is coherent.
+2. Wire that slice into `internal/projectgen/starter/full/`.
+3. Test `gofra new` by generating a real app into a temp directory and running
+   `go test ./...` there.
+4. Extract narrower post-create generators only after the base starter contract
+   is coherent.
 
 The runtime-config feature follows this pattern today:
 
 - reusable framework code in `runtimeconfig/`
+- project bootstrap in `internal/projectgen/`
 - generator internals in `internal/runtimeconfiggen/`
+- a public CLI entrypoint in `cmd/gofra/`
 - a codegen entrypoint in `cmd/gofra-gen-runtimeconfig/`
-- a dogfood app in `examples/basic/`
+- starter-owned app wiring in `internal/projectgen/starter/full/`
 
-**Reason**: a framework repo should not pretend to be a generated app. The
-example proves the contract and keeps future generator extraction grounded in a
-working vertical slice.
+`gofra new` currently performs one job only:
+
+- copy the canonical starter into a destination directory
+- rewrite reserved placeholders such as module path, app name, proto package,
+  and the temporary local framework `replace`
+
+**Reason**: one starter is enough to make project creation real now without
+committing to conditional scaffold composition too early.
 
 ## Decisions in This Section
 
 | # | Decision | Rationale |
 |---|----------|-----------|
 | 26 | mise for tools + tasks | Pins versions. Replaces Makefile. Incremental builds. Parallel execution. |
-| 27 | gofra CLI for generators only | Generators need Go code for imports and interfaces. Tasks are declarative TOML. |
+| 27 | gofra CLI for project bootstrap and generators | `gofra new` and generators need Go code for imports and interfaces. Tasks are declarative TOML. |

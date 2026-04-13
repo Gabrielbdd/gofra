@@ -1,0 +1,3 @@
+app:
+  name: __GOFRA_APP_NAME__
+  port: 3000

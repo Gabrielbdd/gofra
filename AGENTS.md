@@ -10,7 +10,7 @@ the design docs. Work may touch:
 - architecture and product docs in `docs/`
 - reusable framework packages at the repo root
 - generator code under `internal/` and `cmd/`
-- dogfood example apps under `examples/`
+- the canonical generated-app starter under `internal/projectgen/starter/`
 
 ## Project Structure & Module Organization
 
@@ -24,7 +24,7 @@ documents two distinct structures that must not be conflated:
 
 - the **framework repo layout**, where reusable packages such as
   `runtimeconfig/`, generator internals in `internal/`, codegen entrypoints in
-  `cmd/`, and dogfood apps in `examples/` live
+  `cmd/`, and the canonical starter in `internal/projectgen/starter/` live
 - the **generated app layout**, which is the target output of future
   `gofra new`
 
@@ -32,12 +32,14 @@ When adding implementation, prefer this sequence:
 
 1. Add or refine the framework contract in the docs.
 2. Implement reusable framework code at the repo root.
-3. Prove the slice end to end in `examples/`.
-4. Extract it into general-purpose project generation only after the shape is
-   stable.
+3. Wire the slice into the canonical starter under
+   `internal/projectgen/starter/`.
+4. Extract narrower post-create generators only after the base starter contract
+   is stable.
 
 Do not treat the framework repo itself as if it were a generated application.
-`examples/basic` is a dogfood integration target, not the canonical user app.
+The starter source in `internal/projectgen/starter/full/` is the canonical
+generated user app shape for the current phase.
 
 ## Build, Test, and Development Commands
 
@@ -47,8 +49,7 @@ documented target workflow for the full framework.
 Current runnable commands:
 
 - `go test ./...` runs the current Go test suite.
-- `go run ./examples/basic/cmd/app` runs the dogfood example app for the
-  runtime-config slice.
+- `go run ./cmd/gofra --help` shows the current CLI entrypoint shape.
 - `go run ./cmd/gofra-gen-runtimeconfig --help` shows the current generator
   entrypoint shape.
 
@@ -86,8 +87,8 @@ Use `docs/16-testing.md` as the source of truth for the framework’s testing mo
 
 For scaffold work, verify the narrowest realistic slice instead of pretending
 the whole framework exists already. Example: a reusable package plus one
-dogfood app plus focused tests is a valid first step if the docs and commit
-message make that scope explicit.
+starter-backed runnable app slice plus focused tests is a valid first step if
+the docs and commit message make that scope explicit.
 
 ## Commit & Pull Request Guidelines
 

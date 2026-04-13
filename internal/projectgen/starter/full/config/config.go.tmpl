@@ -7,7 +7,6 @@ type Config struct {
 
 type AppConfig struct {
 	Name string
-	Env  string
 	Port int
 }
 
@@ -22,14 +21,13 @@ type AuthConfig struct {
 func Default() *Config {
 	return &Config{
 		App: AppConfig{
-			Name: "basic",
-			Env:  "development",
+			Name: "__GOFRA_APP_NAME__",
 			Port: 3000,
 		},
 		Auth: AuthConfig{
-			Issuer:                 "http://localhost:8080",
-			ClientID:               "basic-browser",
-			Scopes:                 []string{"openid", "profile", "email", "offline_access"},
+			Issuer:                 "http://localhost:9000",
+			ClientID:               "__GOFRA_APP_NAME__-web",
+			Scopes:                 []string{"openid", "profile", "email"},
 			RedirectPath:           "/auth/callback",
 			PostLogoutRedirectPath: "/",
 		},

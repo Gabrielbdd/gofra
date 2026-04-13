@@ -35,7 +35,7 @@ must be softened or deferred until the framework actually solves them.
 | 11 | [Health Checks](11-health-checks.md) | Three-probe model (startup/liveness/readiness), Kubernetes alignment, non-K8s platforms. |
 | 12 | [Graceful Shutdown](12-graceful-shutdown.md) | Four-phase shutdown, readiness drain, gofra.Serve(), Kubernetes budget alignment. |
 | 13 | [Frontend — React SPA](13-frontend.md) | Vite, TanStack Router/Query, Connect-Query, shadcn, dev proxy, production embed. |
-| 14 | [Tooling — mise & gofra CLI](14-tooling.md) | mise.toml, task definitions, gofra generators, developer workflow. |
+| 14 | [Tooling — mise & gofra CLI](14-tooling.md) | mise.toml, task definitions, `gofra new`, generators, developer workflow. |
 | 15 | [Development Environment — Docker Compose](15-docker-compose.md) | Postgres, Restate, Zitadel, Jaeger setup, port map, network topology. |
 | 16 | [Testing](16-testing.md) | Connect handler tests, Restate integration tests, RestateRecorder, factories. |
 | 17 | [Decision Log](17-decision-log.md) | All 134 numbered decisions with rationale, organized by subsystem. |
@@ -51,7 +51,7 @@ Auth:         Zitadel (OIDC, users, orgs) + JWT validation + RBAC permissions in
 Frontend:     React + Vite + TanStack Router + TanStack Query + shadcn + Tailwind 4
 Observability: slog + OpenTelemetry + otelconnect + Jaeger
 Config:       koanf (YAML + env + flags)
-Tooling:      mise (tool versions + tasks) + gofra CLI (generators)
+Tooling:      mise (tool versions + tasks) + gofra CLI (project bootstrap + generators)
 Deployment:   Single Go binary (embedded SPA) + Restate Server + PostgreSQL
 ```
 

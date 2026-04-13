@@ -774,7 +774,7 @@ framework-owned queue abstraction.
 
 ```bash
 # === Project ===
-gofra new myapp                              # scaffold (includes Restate in docker-compose)
+gofra new myapp                              # scaffold the current starter (minimal today)
 gofra dev                                    # HTTP + Restate service endpoint + auto-start Restate Server
 gofra build                                  # compile binary (HTTP + Restate endpoint)
 

@@ -81,9 +81,9 @@ docs disagree, the framework contract itself is unstable.
 **Progress**: Completed by the architecture-alignment pass that normalized the
 core system, API, Restate, database, shutdown, and decision-log docs on the
 same `Connect + sqlc + Restate + Zitadel + React SPA` contract. The
-architecture docs now also distinguish the framework repo layout from the
-generated app layout, with `examples/basic/` documented as the dogfood target
-for new framework slices.
+architecture docs now also distinguish framework-owned library packages from
+starter-owned generated app files, with `internal/projectgen/starter/full/`
+documented as the canonical current starter source.
 
 ### 2. One Auth Model
 
@@ -175,10 +175,12 @@ requirement for framework usability.
 **Progress**: The frontend runtime-config and local browser-entrypoint story
 are now aligned on one model: browser hits Go on `:3000`, Go proxies Vite in
 dev, and public browser config comes from `/_gofra/config.js`. Tool/version
-pinning and Restate endpoint cleanup are still open. An initial code scaffold
-now exists for this slice in the root `runtimeconfig/` package, the
-`cmd/gofra-gen-runtimeconfig` entrypoint, and the `examples/basic/` dogfood
-app, but full proto-driven generation and dev-task integration are still open.
+pinning and Restate endpoint cleanup are still open. A minimal runnable
+`gofra new` now exists through the canonical starter in
+`internal/projectgen/starter/full/`, plus the root `runtimeconfig/` package,
+the `cmd/gofra` bootstrap entrypoint, and the
+`cmd/gofra-gen-runtimeconfig` slice generator. Full proto-driven generation and
+dev-task integration are still open.
 
 ### 9. Operational Baseline
 

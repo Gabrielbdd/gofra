@@ -38,7 +38,7 @@
 | 24 | SPA (no SSR) | Decouples frontend and backend. Contract is proto. | [13](13-frontend.md) |
 | 25 | `embed.FS` for production | Single binary deployment. | [13](13-frontend.md) |
 | 26 | mise for tools + tasks | Pins versions. Replaces Makefile. Incremental builds. | [14](14-tooling.md) |
-| 27 | gofra CLI for generators only | Generators need Go code. Tasks are TOML. | [14](14-tooling.md) |
+| 27 | gofra CLI for project bootstrap and generators | `gofra new` and generators need Go-aware project structure logic. Tasks are TOML. | [14](14-tooling.md) |
 | 28 | Events as map + loop | ~15 lines. Each listener durable via Restate. | [04](04-restate.md) |
 | 29 | No server-side rendering or templates | API-first. Frontend is replaceable. | [13](13-frontend.md) |
 | 130 | Public browser runtime config via generated `/_gofra/config.js` loader | Runtime browser values come from Go without rebuilding the SPA per environment, while staying typed in Go and TS. | [13](13-frontend.md) |
@@ -200,4 +200,4 @@
 
 | # | Decision | Rationale | Doc |
 |---|----------|-----------|-----|
-| 134 | Framework repo uses reusable root packages plus dogfood apps under `examples/` | Keeps framework code distinct from generated app code and gives each slice a runnable integration target before `gofra new` extraction. | [02](02-system-architecture.md) |
+| 134 | Framework repo uses reusable root packages plus a canonical embedded starter | Keeps framework code distinct from generated app code while giving `gofra new` one testable source of truth. | [02](02-system-architecture.md) |

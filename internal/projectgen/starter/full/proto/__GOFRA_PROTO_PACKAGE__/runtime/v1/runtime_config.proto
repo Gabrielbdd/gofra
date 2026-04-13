@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package __GOFRA_PROTO_PACKAGE__.runtime.v1;
+
+message RuntimeConfig {
+  string app_name = 1;
+  string api_base_url = 2;
+  AuthConfig auth = 3;
+}
+
+message AuthConfig {
+  string issuer = 1;
+  string client_id = 2;
+  repeated string scopes = 3;
+  string redirect_path = 4;
+  string post_logout_redirect_path = 5;
+}

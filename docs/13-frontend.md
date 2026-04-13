@@ -116,7 +116,7 @@ bind to `config.Config` by matching nested names:
 The common case is zero handwritten mapping code:
 
 ```go
-resolver := runtimeconfig.NewResolver(appCfg)
+resolver := runtimeconfig.NewResolver(appCfg, BindPublicConfig)
 mux.Handle("/_gofra/config.js", runtimeconfig.Handler(resolver))
 ```
 
@@ -125,6 +125,7 @@ For dynamic values, the app can opt into a small mutator hook:
 ```go
 resolver := runtimeconfig.NewResolver(
     appCfg,
+    BindPublicConfig,
     runtimeconfig.WithMutator(func(ctx context.Context, r *http.Request, cfg *runtimev1.RuntimeConfig) error {
         // optional request-aware overrides
         return nil

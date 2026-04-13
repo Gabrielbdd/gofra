@@ -446,13 +446,13 @@ Generated and handwritten responsibilities are split cleanly:
 
 - `config/config.go` remains the handwritten server config root
 - `config/public_config.go` contains app-owned wiring and optional custom logic
-- `config/public_config_gen.go` is generated and contains the typed binder from
-  `config.Config` to `runtimev1.RuntimeConfig`
+- `config/public_config_gen.go` is generated in the long-term design and is
+  starter-owned placeholder glue today
 - `runtimeconfig/` contains the reusable resolver and HTTP handler behavior
 - `cmd/gofra-gen-runtimeconfig/main.go` is the codegen entrypoint
 
 ```go
-resolver := runtimeconfig.NewResolver(appCfg)
+resolver := runtimeconfig.NewResolver(appCfg, BindPublicConfig)
 mux.Handle("/_gofra/config.js", runtimeconfig.Handler(resolver))
 ```
 
@@ -467,20 +467,22 @@ The generator contract is:
 - failure mode: generation stops if a public proto field cannot be mapped by
   convention
 
-The reusable Go API is:
+The reusable Go API is generic over the application config type and the public
+runtime-config type:
 
 ```go
-type Resolver interface {
-    Resolve(context.Context, *http.Request) (*runtimev1.RuntimeConfig, error)
+type Resolver[T any] interface {
+    Resolve(context.Context, *http.Request) (*T, error)
 }
 
-type Mutator func(context.Context, *http.Request, *runtimev1.RuntimeConfig) error
+type Binder[C any, T any] func(*C) (*T, error)
 
-type Option func(*resolver)
+type Mutator[T any] func(context.Context, *http.Request, *T) error
+type Option[T any] func(*settings[T])
 
-func NewResolver(cfg *config.Config, opts ...Option) Resolver
-func WithMutator(Mutator) Option
-func Handler(r Resolver) http.Handler
+func NewResolver[C any, T any](source *C, bind Binder[C, T], opts ...Option[T]) Resolver[T]
+func WithMutator[T any](Mutator[T]) Option[T]
+func Handler[T any](r Resolver[T]) http.Handler
 ```
 
 For request-aware public config, the application can add a mutator:
@@ -488,6 +490,7 @@ For request-aware public config, the application can add a mutator:
 ```go
 resolver := runtimeconfig.NewResolver(
     appCfg,
+    BindPublicConfig,
     runtimeconfig.WithMutator(func(ctx context.Context, r *http.Request, cfg *runtimev1.RuntimeConfig) error {
         // optional dynamic overrides
         return nil
@@ -495,21 +498,20 @@ resolver := runtimeconfig.NewResolver(
 )
 ```
 
-The handler serializes the resolved proto message to JavaScript:
+The handler serializes the resolved value to JavaScript:
 
 ```go
-func RuntimeConfigJS(msg proto.Message) http.HandlerFunc {
-    return func(w http.ResponseWriter, r *http.Request) {
-        payload, _ := protojson.Marshal(msg)
-        w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
-        w.Header().Set("Cache-Control", "no-store")
-        fmt.Fprintf(w, "window.__GOFRA_CONFIG__ = %s;\n", payload)
-    }
-}
+value, err := resolver.Resolve(r.Context(), r)
+payload, err := json.Marshal(value)
+fmt.Fprintf(w, "window.__GOFRA_CONFIG__ = %s;\n", payload)
 ```
 
 The handler accepts only `GET` and `HEAD`. Handler failures return `500` and do
 not emit partial config.
+
+Until the full proto-driven runtime-config generation is wired into the starter,
+`gofra new` checks in starter-owned placeholder files under `gen/` and
+`config/public_config_gen.go` that mirror the future generated output shape.
 
 **Reason for a dedicated public proto instead of exposing env vars directly**:
 the server config contains secrets and server-only settings. The browser should

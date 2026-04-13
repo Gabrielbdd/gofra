@@ -17,12 +17,15 @@ import (
 	runtimeconfig "{{ .RuntimeImport }}"
 )
 
-// BindPublicConfig extracts the public config subtree from the full config.
+// BindPublicConfig returns a copy of the public config subtree. A fresh copy
+// is returned on each call so mutators cannot modify the shared application
+// config.
 func BindPublicConfig(cfg *Config) (*{{ .PublicType }}, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config: nil *Config")
 	}
-	return &cfg.{{ .PublicFieldName }}, nil
+	copy := cfg.{{ .PublicFieldName }}
+	return &copy, nil
 }
 
 // PublicConfigHandler returns an HTTP handler that serves the public config

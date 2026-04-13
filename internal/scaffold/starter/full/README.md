@@ -12,14 +12,13 @@ This starter is intentionally minimal. It proves the current contract between:
 Today the starter includes:
 
 - a runnable Go HTTP server in `cmd/app`
-- typed application config in `config/`, loaded from defaults, `gofra.yaml`,
-  `GOFRA_*` env vars, and CLI flags, including a reserved `public.*` namespace
-  for browser-safe runtime values
-- a starter-owned placeholder generated public config subtree in
-  `config/public_config_types_gen.go`
-- a starter-owned public runtime-config binder in `config/public_config_gen.go`
-- a checked-in placeholder runtime-config type under `gen/__GOFRA_PROTO_PACKAGE__/runtime/v1/`
+- a proto-driven config schema in `proto/__GOFRA_PROTO_PACKAGE__/config/v1/config.proto`
+- generated typed config in `config/` (`config_gen.go`, `load_gen.go`, `public_gen.go`)
+- optional YAML overrides in `gofra.yaml`
 - a minimal embedded web shell in `web/`
+
+Config fields, defaults, and descriptions are defined once in the proto file.
+Run `gofra generate config` after editing the proto to regenerate the Go code.
 
 ## Local Framework Dependency
 

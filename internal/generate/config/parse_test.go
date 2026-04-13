@@ -3,6 +3,7 @@ package configgen
 import (
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -207,6 +208,18 @@ func TestParseMissingFile(t *testing.T) {
 	_, err := ParseProto("/nonexistent/config.proto", ParseOptions{})
 	if err == nil {
 		t.Fatal("expected error for missing file")
+	}
+}
+
+func TestParseRejectsSecretInPublic(t *testing.T) {
+	t.Parallel()
+
+	_, err := ParseProto(testdataPath("secret_in_public.proto"), ParseOptions{})
+	if err == nil {
+		t.Fatal("expected error for secret field under public subtree")
+	}
+	if !strings.Contains(err.Error(), "secret") || !strings.Contains(err.Error(), "public") {
+		t.Errorf("error = %q, want mention of secret and public", err.Error())
 	}
 }
 

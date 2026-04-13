@@ -1,16 +1,5 @@
+# Configuration overrides. Proto defaults apply when a key is omitted here.
+# See proto/__GOFRA_PROTO_PACKAGE__/config/v1/config.proto for the full schema.
 app:
   name: __GOFRA_APP_NAME__
   port: 3000
-
-public:
-  app_name: __GOFRA_APP_NAME__
-  api_base_url: "http://localhost:3000"
-  auth:
-    issuer: "http://localhost:9000"
-    client_id: "__GOFRA_APP_NAME__-web"
-    scopes:
-      - openid
-      - profile
-      - email
-    redirect_path: "/auth/callback"
-    post_logout_redirect_path: "/"

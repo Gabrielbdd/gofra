@@ -116,6 +116,16 @@ func ParseProto(protoPath string, opts ParseOptions) (*ConfigSchema, error) {
 		}
 	}
 
+	// Validate: reject secret fields under the public subtree.
+	if err := validateNoPublicSecrets(schema); err != nil {
+		return nil, err
+	}
+
+	// Validate: reject unsupported field types.
+	if err := validateFieldTypes(schema); err != nil {
+		return nil, err
+	}
+
 	return schema, nil
 }
 
@@ -129,6 +139,44 @@ func (registryResolver) FindFileByPath(path string) (protocompile.SearchResult, 
 		return protocompile.SearchResult{}, err
 	}
 	return protocompile.SearchResult{Desc: fd}, nil
+}
+
+func validateNoPublicSecrets(schema *ConfigSchema) error {
+	if schema.PublicField == nil || schema.PublicField.MessageRef == nil {
+		return nil
+	}
+	return checkSecretsInMessage(schema.PublicField.MessageRef, "public")
+}
+
+func checkSecretsInMessage(msg *MessageInfo, path string) error {
+	for _, f := range msg.Fields {
+		fieldPath := path + "." + f.ProtoName
+		if f.IsSecret {
+			return fmt.Errorf("configgen: field %q is marked as secret but is under the public subtree; secret fields must not be exposed to the browser", fieldPath)
+		}
+		if f.IsMessage && f.MessageRef != nil {
+			if err := checkSecretsInMessage(f.MessageRef, fieldPath); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func validateFieldTypes(schema *ConfigSchema) error {
+	for _, msg := range schema.AllMessages {
+		for _, f := range msg.Fields {
+			if f.IsMessage && f.MessageRef == nil {
+				return fmt.Errorf("configgen: field %q in %q uses imported message type %q; config fields must use messages defined in the same proto file",
+					f.ProtoName, msg.GoName, f.GoType)
+			}
+			if !f.IsMessage && strings.HasPrefix(f.GoType, "UNSUPPORTED_") {
+				return fmt.Errorf("configgen: field %q in %q uses unsupported proto type %s; only string, int32, int64, uint32, uint64, bool, float, and double are supported",
+					f.ProtoName, msg.GoName, strings.TrimPrefix(f.GoType, "UNSUPPORTED_"))
+			}
+		}
+	}
+	return nil
 }
 
 func sourceAccessor(protoDir string) func(path string) (io.ReadCloser, error) {
@@ -204,7 +252,12 @@ func convertField(f protoreflect.FieldDescriptor, parentIsPublic bool, msgMap ma
 	if f.Kind() == protoreflect.MessageKind {
 		fi.IsMessage = true
 		fi.GoType = string(f.Message().Name())
-		if ref, ok := msgMap[f.Message().FullName()]; ok {
+		ref, ok := msgMap[f.Message().FullName()]
+		if !ok {
+			// Message is imported from another file (e.g., google.protobuf.Duration).
+			// Config fields must use messages defined in the same proto file.
+			fi.GoType = "UNSUPPORTED_IMPORTED_MESSAGE"
+		} else {
 			fi.MessageRef = ref
 			// Recursively convert the nested message.
 			convertMessage(f.Message(), msgMap, fd)
@@ -447,7 +500,9 @@ func protoKindToGoType(kind protoreflect.Kind, repeated bool) string {
 	case protoreflect.DoubleKind:
 		base = "float64"
 	default:
-		base = "string"
+		// Enum, bytes, and other unsupported kinds are marked so validation
+		// catches them before code emission.
+		base = "UNSUPPORTED_" + kind.String()
 	}
 	if repeated {
 		return "[]" + base
@@ -473,6 +528,6 @@ func protoKindToFlagType(kind protoreflect.Kind, repeated bool) string {
 	case protoreflect.DoubleKind:
 		return "Float64"
 	default:
-		return "String"
+		return "" // unsupported kind, caught by validateFieldTypes
 	}
 }

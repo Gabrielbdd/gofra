@@ -526,7 +526,7 @@ Generated and handwritten responsibilities are split cleanly:
 - `config/public_config_gen.go` contains the generated binder from `cfg.Public`
   to `runtimev1.RuntimeConfig`
 - `config/public_config.go` contains app-owned wiring and optional custom logic
-- `runtimeconfig/` contains the reusable resolver and HTTP handler behavior
+- `runtime/config/` contains the reusable resolver and HTTP handler behavior
 - `web/src/gen/runtime/` contains the generated frontend loader and
   `Window.__GOFRA_CONFIG__` typing
 - the intended public generator shape is `gofra generate runtime-config`; the

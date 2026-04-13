@@ -215,7 +215,7 @@ settling.
 
 The current implementation strategy is:
 
-1. Build a reusable framework slice at the repo root.
+1. Build a reusable framework slice on the public runtime surface.
 2. Wire that slice into `internal/scaffold/starter/full/`.
 3. Test `gofra new` by generating a real app into a temp directory and running
    `go test ./...` there.
@@ -232,7 +232,7 @@ The runtime-config feature follows this pattern today:
 
 In current code, those responsibilities are implemented primarily by:
 
-- `runtimeconfig/`
+- `runtime/config/`
 - `internal/scaffold/`
 - `internal/generate/runtimeconfig/`
 - `internal/scaffold/starter/full/`

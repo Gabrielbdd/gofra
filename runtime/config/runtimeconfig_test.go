@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"databit.com.br/gofra/runtimeconfig"
+	"databit.com.br/gofra/runtime/config"
 )
 
 type appConfig struct {

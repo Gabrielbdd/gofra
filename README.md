@@ -7,7 +7,7 @@ Go, Connect RPC, Restate, PostgreSQL, and a default SPA frontend.
 The repo is still early. The three surfaces that matter are:
 
 - the `gofra` CLI for project bootstrap and generators
-- reusable framework code at the repo root, such as [`runtimeconfig/`](runtimeconfig)
+- reusable framework code under [`runtime/`](runtime), such as [`runtime/config/`](runtime/config)
 - the canonical starter that `gofra new` copies into new applications
 
 ## Current Status
@@ -107,7 +107,7 @@ The important directories right now are:
 - `cmd/gofra/`: the public CLI entrypoint
 - `internal/scaffold/`: starter copy logic and generation tests
 - `internal/scaffold/starter/full/`: the canonical generated-app source tree
-- `runtimeconfig/`: reusable framework code already exposed as a library
+- `runtime/config/`: reusable framework code already exposed as a library
 - `internal/generate/runtimeconfig/`: the slice-specific generator internals
   for runtime config
 - `docs/`: the architecture and product contract

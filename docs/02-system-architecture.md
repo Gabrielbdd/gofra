@@ -240,13 +240,14 @@ is the contract for what a fresh generated application looks like.
 
 ### Current Framework Repo Layout
 
-The current code keeps reusable packages at the repo root and keeps the
+The current code keeps reusable app-facing packages under `runtime/` and keeps the
 canonical generated-app starter under `internal/scaffold/starter/`:
 
 ```
 gofra/
 ├── go.mod
-├── runtimeconfig/              # Reusable runtime-config resolver + HTTP handler
+├── runtime/
+│   └── config/                # Reusable runtime-config resolver + HTTP handler
 ├── internal/
 │   ├── scaffold/
 │   │   ├── generator.go        # Embedded starter copy + token replacement
@@ -278,7 +279,7 @@ generated app contract explicit, reviewable, and testable without pretending
 that the framework repo itself is the application.
 
 **Reason for separating library code from starter-owned files**: reusable
-behavior belongs in framework packages such as `runtimeconfig/`. App-specific
+behavior belongs in framework packages such as `runtime/config/`. App-specific
 wiring, checked-in generated placeholders, and shell files belong in the
 starter because they are part of the generated project, not the framework API.
 
@@ -309,7 +310,7 @@ docs/
 This is the intended architectural direction, not a claim that the repo has
 already finished every planned package rename. Today the equivalent code is
 primarily under `internal/scaffold/`, `internal/generate/runtimeconfig/`, and
-root packages such as `runtimeconfig/`.
+public runtime packages such as `runtime/config/`.
 
 The main reason for this shape is to make the three surfaces visible at a
 glance:
@@ -336,7 +337,7 @@ direction stable while the repo is still early.
 The starter is the canonical generated application shape for the current phase,
 but it is intentionally smaller than the full target layout below.
 
-- Framework-owned code stays at the repo root and is imported by generated apps
+- Framework-owned code stays on the public runtime surface and is imported by generated apps
   as a library.
 - Starter-owned files live under `internal/scaffold/starter/full/` and are
   copied into new applications by `gofra new`.
@@ -1285,4 +1286,4 @@ will retry them on the next available instance. No data is lost.
 | 32 | Skip AIP-122 (resource names) | Hierarchical names are for infrastructure APIs. Web apps use `id`/`slug`. |
 | 33 | Skip AIP-151 (LRO) | Restate Workflows are strictly more capable. Polling-based LRO is a step backward. |
 | 34 | Skip AIP-127 (transcoding) | Connect handles HTTP mapping automatically. No annotations needed. |
-| 134 | Framework repo uses reusable root packages plus a canonical embedded starter | Keeps framework code distinct from generated app code while giving `gofra new` one testable source of truth. |
+| 134 | Framework repo uses public runtime packages plus a canonical embedded starter | Keeps framework code distinct from generated app code while giving `gofra new` one testable source of truth. |

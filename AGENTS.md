@@ -8,7 +8,7 @@ This is no longer a docs-only repo. Early implementation slices now live beside
 the design docs. Work may touch:
 
 - architecture and product docs in `docs/`
-- reusable framework packages at the repo root
+- reusable framework packages under the public `runtime/` surface
 - generator code under `internal/` and `cmd/`
 - the canonical generated-app starter under `internal/scaffold/starter/`
 
@@ -23,7 +23,7 @@ The source of truth for repo layout is `docs/02-system-architecture.md`. It
 documents two distinct structures that must not be conflated:
 
 - the **framework repo layout**, where reusable packages such as
-  `runtimeconfig/`, generator internals in `internal/`, codegen entrypoints in
+  `runtime/config/`, generator internals in `internal/`, codegen entrypoints in
   `cmd/`, and the canonical starter in `internal/scaffold/starter/` live
 - the **generated app layout**, which is the target output of future
   `gofra new`
@@ -31,7 +31,7 @@ documents two distinct structures that must not be conflated:
 When adding implementation, prefer this sequence:
 
 1. Add or refine the framework contract in the docs.
-2. Implement reusable framework code at the repo root.
+2. Implement reusable framework code under the public `runtime/` surface.
 3. Wire the slice into the canonical starter under
    `internal/scaffold/starter/`.
 4. Extract narrower post-create generators only after the base starter contract

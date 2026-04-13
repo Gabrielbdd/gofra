@@ -31,9 +31,12 @@ func TestGenerateCreatesRunnableStarter(t *testing.T) {
 
 	for _, rel := range []string{
 		"go.mod",
+		"go.sum",
 		"README.md",
 		"cmd/app/main.go",
 		"config/config.go",
+		"config/load.go",
+		"config/load_test.go",
 		"config/public_config.go",
 		"config/public_config_gen.go",
 		"config/public_config_types_gen.go",

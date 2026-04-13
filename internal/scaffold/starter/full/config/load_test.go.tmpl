@@ -1,0 +1,108 @@
+package config
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestLoadReadsGofraYAML(t *testing.T) {
+	configPath := writeConfigFile(t, `
+app:
+  port: 4100
+
+public:
+  app_name: from-yaml
+  api_base_url: "http://localhost:4100"
+`)
+	t.Setenv("GOFRA_CONFIG", configPath)
+
+	cfg, err := Load(nil)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.App.Port != 4100 {
+		t.Fatalf("App.Port = %d, want %d", cfg.App.Port, 4100)
+	}
+	if cfg.Public.AppName != "from-yaml" {
+		t.Fatalf("Public.AppName = %q, want %q", cfg.Public.AppName, "from-yaml")
+	}
+	if cfg.Public.APIBaseURL != "http://localhost:4100" {
+		t.Fatalf("Public.APIBaseURL = %q, want %q", cfg.Public.APIBaseURL, "http://localhost:4100")
+	}
+	if cfg.Public.Auth.ClientID != "__GOFRA_APP_NAME__-web" {
+		t.Fatalf("Public.Auth.ClientID = %q, want starter default", cfg.Public.Auth.ClientID)
+	}
+}
+
+func TestLoadAppliesEnvAndFlagPrecedence(t *testing.T) {
+	configPath := writeConfigFile(t, `
+app:
+  port: 4100
+
+public:
+  app_name: from-yaml
+`)
+	t.Setenv("GOFRA_CONFIG", configPath)
+	t.Setenv("GOFRA_APP_PORT", "4200")
+	t.Setenv("GOFRA_PUBLIC_APP_NAME", "from-env")
+
+	cfg, err := Load([]string{"-app.port=4300", "-public.app_name=from-flag"})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.App.Port != 4300 {
+		t.Fatalf("App.Port = %d, want %d", cfg.App.Port, 4300)
+	}
+	if cfg.Public.AppName != "from-flag" {
+		t.Fatalf("Public.AppName = %q, want %q", cfg.Public.AppName, "from-flag")
+	}
+}
+
+func TestPublicConfigHandlerReflectsLoadedValues(t *testing.T) {
+	configPath := writeConfigFile(t, `
+public:
+  app_name: visible-on-frontend
+  api_base_url: "https://api.example.test"
+`)
+	t.Setenv("GOFRA_CONFIG", configPath)
+
+	cfg, err := Load(nil)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/_gofra/config.js", nil)
+	rec := httptest.NewRecorder()
+
+	PublicConfigHandler(cfg).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `"appName":"visible-on-frontend"`) {
+		t.Fatalf("body = %q, want updated appName", body)
+	}
+	if !strings.Contains(body, `"apiBaseUrl":"https://api.example.test"`) {
+		t.Fatalf("body = %q, want updated apiBaseUrl", body)
+	}
+}
+
+func writeConfigFile(t *testing.T, content string) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "gofra.yaml")
+	if err := os.WriteFile(path, []byte(strings.TrimSpace(content)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	return path
+}

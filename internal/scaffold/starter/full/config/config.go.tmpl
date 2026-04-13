@@ -1,13 +1,13 @@
 package config
 
 type Config struct {
-	App    AppConfig
-	Public PublicConfig
+	App    AppConfig    `koanf:"app" yaml:"app"`
+	Public PublicConfig `koanf:"public" yaml:"public"`
 }
 
 type AppConfig struct {
-	Name string
-	Port int
+	Name string `koanf:"name" yaml:"name"`
+	Port int    `koanf:"port" yaml:"port"`
 }
 
 func Default() *Config {

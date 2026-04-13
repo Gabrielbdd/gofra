@@ -347,7 +347,8 @@ but it is intentionally smaller than the full target layout below.
 Today `gofra new` copies one minimal runnable starter that includes:
 
 - `cmd/app/` for the HTTP entrypoint
-- `config/` for typed config plus public runtime-config wiring
+- `config/` for typed config loading from defaults, `gofra.yaml`,
+  `GOFRA_*` env vars, and CLI flags, plus public runtime-config wiring
 - `config/public_config_types_gen.go` as placeholder generated code for the
   reserved `public.*` config subtree
 - `gen/<app>/runtime/v1/` for checked-in placeholder runtime-config Go types
@@ -424,6 +425,7 @@ myapp/
 │
 ├── config/
 │   ├── config.go                # Typed runtime config root; includes stable `Public PublicConfig`
+│   ├── load.go                  # Merges defaults, `gofra.yaml`, env vars, and CLI flags
 │   ├── public_config.go         # App-owned runtime-config resolver wiring + optional custom logic
 │   ├── public_config_types_gen.go # Generated `public.*` config subtree from runtime_config.proto
 │   ├── public_config_gen.go     # Generated binder from `cfg.Public` to `runtime.v1.RuntimeConfig`

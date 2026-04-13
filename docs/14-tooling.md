@@ -237,6 +237,10 @@ In current code, those responsibilities are implemented primarily by:
 - `internal/generate/runtimeconfig/`
 - `internal/scaffold/starter/full/`
 
+The canonical starter now loads runtime config from defaults, `gofra.yaml`,
+`GOFRA_*` env vars, and CLI flags before exposing the public subset at
+`/_gofra/config.js`.
+
 `gofra new` currently performs one job only:
 
 - copy the canonical starter into a destination directory

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 
 	"__GOFRA_FRAMEWORK_MODULE__/runtime/config"
 	"__GOFRA_MODULE__/config"
@@ -11,7 +12,11 @@ import (
 )
 
 func main() {
-	cfg := config.Default()
+	cfg, err := config.Load(os.Args[1:])
+	if err != nil {
+		slog.Error("failed to load config", "error", err)
+		os.Exit(1)
+	}
 
 	mux := http.NewServeMux()
 	mux.Handle(runtimeconfig.DefaultPath, config.PublicConfigHandler(cfg))

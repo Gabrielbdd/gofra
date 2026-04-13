@@ -179,10 +179,11 @@ are now aligned on one model: browser hits Go on `:3000`, Go proxies Vite in
 dev, and public browser config comes from `/_gofra/config.js`. The intended DX
 is now explicit: edit `runtime_config.proto`, set values under `public.*`,
 regenerate, and consume the new typed field on the frontend. The canonical
-starter now mirrors that shape with a reserved `public` namespace and
-placeholder generated files, but the full proto-driven generator and final
-`gofra generate runtime-config` UX are still open. Tool/version pinning and
-Restate endpoint cleanup are also still open.
+starter now mirrors that shape with a reserved `public` namespace, starter
+config loading from `gofra.yaml` plus env/flags, and placeholder generated
+files, but the full proto-driven generator and final `gofra generate
+runtime-config` UX are still open. Tool/version pinning and Restate endpoint
+cleanup are also still open.
 
 ### 9. Operational Baseline
 

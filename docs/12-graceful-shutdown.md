@@ -10,7 +10,7 @@
 
 ## The Problem
 
-A Forge application runs two network listeners in one process:
+A Gofra application runs two network listeners in one process:
 
 1. **HTTP server** (`:3000`) — serves Connect RPC handlers and the SPA.
    Clients have in-flight requests that must complete.
@@ -87,8 +87,8 @@ connection refused errors.
 ## Implementation
 
 ```go
-// forge/serve.go
-package forge
+// gofra/serve.go
+package gofra
 
 import (
     "context"
@@ -164,7 +164,7 @@ func Serve(ctx context.Context, cfg ServeConfig) error {
         cfg.Health.startupDone.Store(true)
     }
 
-    slog.Info("forge application started",
+    slog.Info("gofra application started",
         "http", cfg.HTTPAddr,
         "restate", cfg.RestateAddr,
     )
@@ -268,19 +268,19 @@ func main() {
     otelShutdown := setupOTEL(cfg)
 
     // Database
-    db, _ := forge.OpenDB(cfg.Database)
+    db, _ := gofra.OpenDB(cfg.Database)
     queries := sqlc.New(db)
 
     // Health
-    health := forge.NewHealthChecker(db, cfg.Restate.IngressURL)
+    health := gofra.NewHealthChecker(db, cfg.Restate.IngressURL)
 
     // HTTP mux
     mux := chi.NewRouter()
     mux.Get("/healthz/startup", health.StartupHandler())
     mux.Get("/healthz/live", health.LivenessHandler())
     mux.Get("/healthz/ready", health.ReadinessHandler())
-    mux.Use(forge.CORSMiddleware(cfg.CORS))
-    mux.Use(forge.RecoveryMiddleware)
+    mux.Use(gofra.CORSMiddleware(cfg.CORS))
+    mux.Use(gofra.RecoveryMiddleware)
     // ... mount Connect handlers, SPA fallback ...
 
     // Restate setup (deferred — starts inside Serve)
@@ -293,7 +293,7 @@ func main() {
     }
 
     // Run
-    err := forge.Serve(context.Background(), forge.ServeConfig{
+    err := gofra.Serve(context.Background(), gofra.ServeConfig{
         HTTPHandler:  mux,
         HTTPAddr:     fmt.Sprintf(":%d", cfg.App.Port),
         RestateSetup: restateSetup,
@@ -362,7 +362,7 @@ spec:
 ```
 
 If the application needs longer drains (e.g., very slow HTTP requests), increase
-`terminationGracePeriodSeconds` and adjust the constants in `forge/serve.go`.
+`terminationGracePeriodSeconds` and adjust the constants in `gofra/serve.go`.
 
 ---
 
@@ -381,7 +381,7 @@ grace period anyway, so escalation is rarely needed.
 ## What the Logs Look Like
 
 ```
-INFO  forge application started            http=:3000 restate=:9080
+INFO  gofra application started            http=:3000 restate=:9080
 ...
 INFO  shutdown signal received
 INFO  readiness set to not-ready, draining  delay=2s

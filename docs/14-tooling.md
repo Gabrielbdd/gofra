@@ -1,4 +1,4 @@
-# 14 — Tooling: mise & forge CLI
+# 14 — Tooling: mise & gofra CLI
 
 > Parent: [Index](00-index.md) | Prev: [Frontend](13-frontend.md) | Next: [Docker Compose](15-docker-compose.md)
 
@@ -43,7 +43,7 @@ sources = ["proto/**/*.proto"]
 outputs = ["web/src/gen/**/*.ts"]
 
 [tasks."gen:runtimeconfig"]
-run = "go run ./cmd/forge-gen-runtimeconfig"
+run = "go run ./cmd/gofra-gen-runtimeconfig"
 sources = ["proto/**/*runtime_config.proto", "config/config.go"]
 outputs = ["config/public_config_gen.go", "web/src/gen/runtime/runtime-config.ts"]
 
@@ -68,7 +68,7 @@ run = "docker compose up -d"
 
 [tasks.build]
 depends = ["gen", "build:web"]
-run = "go build -o forge-app ./cmd/app"
+run = "go build -o gofra-app ./cmd/app"
 
 [tasks."build:web"]
 run = "cd web && npm run build"
@@ -108,27 +108,27 @@ mise run dev              # Start Go (air) + Vite
 ```
 
 `mise run dev` starts both processes, but the browser entrypoint is the Go
-server on `http://localhost:3000`. Go serves API routes and `/_forge/config.js`
+server on `http://localhost:3000`. Go serves API routes and `/_gofra/config.js`
 directly, and proxies frontend pages/assets to Vite for HMR.
 
-## forge CLI
+## gofra CLI
 
-**Decision #27.** The `forge` binary handles code generation only — tasks that
+**Decision #27.** The `gofra` binary handles code generation only — tasks that
 need to understand Go project structure, imports, and interface implementations.
 
 ```bash
-forge generate service ProcessPodcast     # → app/services/process_podcast.go
-forge generate object ShoppingCart        # → app/objects/shopping_cart.go
-forge generate workflow OrderCheckout     # → app/workflows/order_checkout.go
-forge generate proto posts               # → proto/myapp/posts/v1/posts.proto
-forge generate migration create_posts    # → db/migrations/..._create_posts.sql
+gofra generate service ProcessPodcast     # → app/services/process_podcast.go
+gofra generate object ShoppingCart        # → app/objects/shopping_cart.go
+gofra generate workflow OrderCheckout     # → app/workflows/order_checkout.go
+gofra generate proto posts               # → proto/myapp/posts/v1/posts.proto
+gofra generate migration create_posts    # → db/migrations/..._create_posts.sql
 ```
 
-Tasks (build, test, lint, dev) stay in mise. Generators stay in forge.
+Tasks (build, test, lint, dev) stay in mise. Generators stay in gofra.
 
 ## Decisions in This Section
 
 | # | Decision | Rationale |
 |---|----------|-----------|
 | 26 | mise for tools + tasks | Pins versions. Replaces Makefile. Incremental builds. Parallel execution. |
-| 27 | forge CLI for generators only | Generators need Go code for imports and interfaces. Tasks are declarative TOML. |
+| 27 | gofra CLI for generators only | Generators need Go code for imports and interfaces. Tasks are declarative TOML. |

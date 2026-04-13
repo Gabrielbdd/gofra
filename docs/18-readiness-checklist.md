@@ -2,7 +2,7 @@
 
 > Parent: [Index](00-index.md) | Prev: [Decision Log](17-decision-log.md)
 >
-> This document defines which promises Forge should keep for v1, which claims
+> This document defines which promises Gofra should keep for v1, which claims
 > should be softened or removed, and what must be true before calling the
 > framework usable in production.
 
@@ -10,7 +10,7 @@
 
 ## Why This Document Exists
 
-Forge's design docs are broad. That is useful during exploration, but it is not
+Gofra's design docs are broad. That is useful during exploration, but it is not
 enough for a v1 release. A usable framework needs a smaller set of promises
 that are actually solved end to end.
 
@@ -18,7 +18,7 @@ This checklist is the scope authority for v1:
 
 - If another doc promises more than this checklist, the checklist wins for v1.
 - If two docs conflict, use this checklist to decide which contract to keep.
-- A feature is not "part of Forge v1" because it appears in an example. It is
+- A feature is not "part of Gofra v1" because it appears in an example. It is
   part of v1 only if this document keeps it and the supporting docs make it
   operationally credible.
 
@@ -26,15 +26,15 @@ This checklist is the scope authority for v1:
 
 ## V1 Promises Worth Keeping
 
-Forge v1 should keep these promises and solve them fully:
+Gofra v1 should keep these promises and solve them fully:
 
-- Forge is an API-first Go framework built around Connect RPC, PostgreSQL,
+- Gofra is an API-first Go framework built around Connect RPC, PostgreSQL,
   Restate, Zitadel, and a default React SPA.
 - API contracts are defined in `proto/` and generate both Go server types and
   TypeScript client types.
 - Durable background work and long-running workflows are first-class through
   Restate, with clear handler patterns and operational visibility.
-- Authentication is delegated to Zitadel. Authorization is enforced in Forge.
+- Authentication is delegated to Zitadel. Authorization is enforced in Gofra.
 - Production deployment is one application binary plus required infrastructure,
   with documented health checks, shutdown, configuration, and observability.
 - Local development is reproducible with pinned tools, one default workflow,
@@ -47,7 +47,7 @@ implement coherently.
 
 ## Promises To Soften Or Drop For V1
 
-Forge v1 should not promise the following until they are actually solved:
+Gofra v1 should not promise the following until they are actually solved:
 
 - End-to-end exactly-once behavior for mutating requests.
 - Multi-tenant application data isolation by default.
@@ -75,7 +75,7 @@ The following items are release blockers for a credible v1.
 - [x] Ensure the project structure, handler examples, and test examples all use
   the same package layout and dependency story.
 
-**Why this is release-critical**: Forge is still documentation-first. If the
+**Why this is release-critical**: Gofra is still documentation-first. If the
 docs disagree, the framework contract itself is unstable.
 
 **Progress**: Completed by the architecture-alignment pass that normalized the
@@ -91,10 +91,10 @@ same `Connect + sqlc + Restate + Zitadel + React SPA` contract.
 - [x] Define which endpoints are public, which require authentication, and how
   admin access flows through the backend to Zitadel.
 
-**Why this is release-critical**: auth is not a plugin in Forge's story. It is
+**Why this is release-critical**: auth is not a plugin in Gofra's story. It is
 one of the framework's core opinions.
 
-**Progress**: Completed. Forge now has one explicit auth model: direct OIDC
+**Progress**: Completed. Gofra now has one explicit auth model: direct OIDC
 Authorization Code flow on all human clients, with browser-specific defaults
 for `sessionStorage`, refresh handling, logout, route protection, and
 private-by-default RPCs, plus a canonical `auth` config block in the main
@@ -104,7 +104,7 @@ configuration document.
 
 - [ ] Replace vague `request_id` claims with an explicit mutation strategy.
 - [ ] Define how database writes and Restate dispatch compose safely.
-- [ ] State clearly whether Forge provides deduplication, exactly-once effects,
+- [ ] State clearly whether Gofra provides deduplication, exactly-once effects,
   at-least-once delivery, or only idempotency hooks.
 - [ ] Add tests and examples that cover client retries, duplicate submission,
   and crash windows between DB mutation and durable dispatch.
@@ -118,7 +118,7 @@ section remains open.
 
 ### 4. Explicit Tenancy Decision
 
-- [ ] Decide whether Forge v1 is single-tenant or multi-tenant by default.
+- [ ] Decide whether Gofra v1 is single-tenant or multi-tenant by default.
 - [ ] If single-tenant, remove multi-tenant positioning from the product story.
 - [ ] If multi-tenant, define tenant keys, query scoping, authz boundaries,
   uniqueness rules, and test coverage for isolation.
@@ -158,7 +158,7 @@ rollouts even when the application code is correct.
   needed for real deployments.
 
 **Why this is release-critical**: these are common failure points for modern web
-applications and they sit in Forge's claimed area of responsibility.
+applications and they sit in Gofra's claimed area of responsibility.
 
 ### 8. Reproducible Tooling And Local Workflow
 
@@ -171,7 +171,7 @@ requirement for framework usability.
 
 **Progress**: The frontend runtime-config and local browser-entrypoint story
 are now aligned on one model: browser hits Go on `:3000`, Go proxies Vite in
-dev, and public browser config comes from `/_forge/config.js`. Tool/version
+dev, and public browser config comes from `/_gofra/config.js`. Tool/version
 pinning and Restate endpoint cleanup are still open.
 
 ### 9. Operational Baseline
@@ -180,7 +180,7 @@ pinning and Restate endpoint cleanup are still open.
   production.
 - [ ] Add runbooks for migrations, rollout, rollback, backup/restore, and
   durable job failure inspection.
-- [ ] State what Forge expects the operator to provide versus what the framework
+- [ ] State what Gofra expects the operator to provide versus what the framework
   provides directly.
 
 **Why this is release-critical**: operational clarity is part of the framework's
@@ -193,7 +193,7 @@ value proposition, not an afterthought.
   workflow compensation, and migration safety.
 - [ ] If multi-tenancy is kept, add tenancy isolation tests before release.
 
-**Why this is release-critical**: Forge should only promise behavior it can
+**Why this is release-critical**: Gofra should only promise behavior it can
 verify repeatedly.
 
 **Progress**: The runtime-config feature now has a documented test shape across
@@ -223,7 +223,7 @@ contracts.
 
 ## Ship Gate
 
-Forge v1 is not ready to ship until all of the following are true:
+Gofra v1 is not ready to ship until all of the following are true:
 
 - [ ] A new application can be scaffolded and run locally without undocumented
   decisions.

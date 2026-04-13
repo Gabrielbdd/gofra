@@ -11,7 +11,7 @@ function parameters, never accessed via globals. If you read `main.go`, you
 can trace every dependency.
 
 **Protocols over frameworks.** The API contract is Protocol Buffers. The RPC
-layer is Connect RPC. The durable execution layer is the Restate SDK. Forge
+layer is Connect RPC. The durable execution layer is the Restate SDK. Gofra
 provides project structure and tooling around these protocols — it does not
 wrap them in its own abstractions.
 
@@ -32,13 +32,13 @@ Deploy alongside a Restate Server and a Postgres database. Nothing else.
 
 ## Positioning
 
-Forge is not trying to recreate server-rendered Rails, Laravel, or Phoenix in
+Gofra is not trying to recreate server-rendered Rails, Laravel, or Phoenix in
 Go. It borrows the batteries-included mindset and convention-driven developer
 experience, but its position is different: an API-first framework for general
 web applications, with typed Connect RPC contracts, a default React SPA,
 required Zitadel-based identity, and Restate for durable workflows.
 
-That makes Forge closer to an opinionated Go application platform than a thin
+That makes Gofra closer to an opinionated Go application platform than a thin
 HTTP toolkit. The tradeoff is deliberate: more upfront structure, fewer
 infrastructure decisions left to each project.
 
@@ -126,7 +126,7 @@ See [Observability](07-observability.md).
 - Not wrapping Connect RPC or Restate SDK in framework abstractions.
 - Not an ORM. sqlc generates from SQL. No model methods.
 - Not a service container. Go uses explicit struct fields.
-- Not a line-by-line port of Rails, Laravel, or Phoenix. Forge borrows DX ideas, but keeps Go-native patterns and an API-first architecture.
+- Not a line-by-line port of Rails, Laravel, or Phoenix. Gofra borrows DX ideas, but keeps Go-native patterns and an API-first architecture.
 
 ---
 

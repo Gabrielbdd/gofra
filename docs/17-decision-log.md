@@ -38,10 +38,10 @@
 | 24 | SPA (no SSR) | Decouples frontend and backend. Contract is proto. | [13](13-frontend.md) |
 | 25 | `embed.FS` for production | Single binary deployment. | [13](13-frontend.md) |
 | 26 | mise for tools + tasks | Pins versions. Replaces Makefile. Incremental builds. | [14](14-tooling.md) |
-| 27 | forge CLI for generators only | Generators need Go code. Tasks are TOML. | [14](14-tooling.md) |
+| 27 | gofra CLI for generators only | Generators need Go code. Tasks are TOML. | [14](14-tooling.md) |
 | 28 | Events as map + loop | ~15 lines. Each listener durable via Restate. | [04](04-restate.md) |
 | 29 | No server-side rendering or templates | API-first. Frontend is replaceable. | [13](13-frontend.md) |
-| 130 | Public browser runtime config via generated `/_forge/config.js` loader | Runtime browser values come from Go without rebuilding the SPA per environment, while staying typed in Go and TS. | [13](13-frontend.md) |
+| 130 | Public browser runtime config via generated `/_gofra/config.js` loader | Runtime browser values come from Go without rebuilding the SPA per environment, while staying typed in Go and TS. | [13](13-frontend.md) |
 | 131 | Go is the browser entrypoint in dev and proxies Vite | Same browser origin in dev and prod. Vite still provides HMR behind the proxy. | [13](13-frontend.md) |
 | 30 | `RestateRecorder` for handler tests | Fast HTTP tests without Docker. | [16](16-testing.md) |
 | 31 | Docker-based Restate integration tests | Durable handlers need real journal. | [16](16-testing.md) |
@@ -64,7 +64,7 @@
 | 43 | Restate Server exports OTLP | Same collector. Correlated traces via W3C TraceContext. | [07](07-observability.md) |
 | 44 | AlwaysSample in dev, ratio-based in prod | See everything locally. Control volume in production. | [07](07-observability.md) |
 | 45 | W3C TraceContext propagator | Standard. Restate and Connect both use it. | [07](07-observability.md) |
-| 46 | `forge.` metric prefix | Distinguish app metrics from otelconnect and Restate metrics. | [07](07-observability.md) |
+| 46 | `gofra.` metric prefix | Distinguish app metrics from otelconnect and Restate metrics. | [07](07-observability.md) |
 | 47 | Jaeger in dev via mise task | One command for local trace viewing. | [07](07-observability.md) |
 
 ## Database (Decisions #48–57)
@@ -89,13 +89,13 @@
 | 58 | koanf over viper | No forced lowercasing. Modular deps. Correct merge semantics. | [06](06-configuration.md) |
 | 59 | YAML over TOML | Supports comments. Familiar from Docker/K8s ecosystem. | [06](06-configuration.md) |
 | 60 | Four-layer precedence: defaults → YAML → env → flags | 12-factor app standard. | [06](06-configuration.md) |
-| 61 | `FORGE_` prefix for env vars | Prevents collisions with platform vars like PORT. | [06](06-configuration.md) |
-| 62 | Single forge.yaml (no per-environment files) | Env vars handle deployment config. Per-env files drift. | [06](06-configuration.md) |
+| 61 | `GOFRA_` prefix for env vars | Prevents collisions with platform vars like PORT. | [06](06-configuration.md) |
+| 62 | Single gofra.yaml (no per-environment files) | Env vars handle deployment config. Per-env files drift. | [06](06-configuration.md) |
 | 63 | Typed struct, not k.String() calls | Compile-time checking. Single place for all options. | [06](06-configuration.md) |
 | 64 | No global config singleton | Config passed from main(). Same DI pattern as everything else. | [06](06-configuration.md) |
 | 65 | Manual validation over struct tags | Startup-time concern. Simple rules. 10-line function. | [06](06-configuration.md) |
 | 66 | Secrets only via env vars | YAML is in version control. Secrets in VCS = security incident. | [06](06-configuration.md) |
-| 132 | Generated public runtime config for the browser | Browser gets an explicit proto-defined safe subset at `/_forge/config.js`, not raw env vars or secrets. | [06](06-configuration.md) |
+| 132 | Generated public runtime config for the browser | Browser gets an explicit proto-defined safe subset at `/_gofra/config.js`, not raw env vars or secrets. | [06](06-configuration.md) |
 
 ## Auth & Authz (Decisions #67–79, #124–129)
 
@@ -110,7 +110,7 @@
 | 73 | Resource-level authz in RPC handlers | Requires loading the resource. Can't check in interceptor. | [08](08-auth.md) |
 | 74 | JIT user profile creation | No sync. Profile created on first API call. | [08](08-auth.md) |
 | 75 | `zitadel_user_id TEXT` as PK | Zitadel IDs are opaque strings. Direct PK avoids surrogate. | [08](08-auth.md) |
-| 76 | Admin handlers proxy to Zitadel | SPA doesn't get admin credentials. Forge enforces authz. | [08](08-auth.md) |
+| 76 | Admin handlers proxy to Zitadel | SPA doesn't get admin credentials. Gofra enforces authz. | [08](08-auth.md) |
 | 77 | No BFF/session-cookie default for browser clients | Keep the v1 surface smaller and backend validation consistent. Revisit later if needed. | [08](08-auth.md) |
 | 78 | `urn:zitadel:iam:org:projects:roles` scope | Includes roles in token. No extra API call. | [08](08-auth.md) |
 | 79 | Frontend permission checks display-only | Server always re-checks. Never trust the client. | [08](08-auth.md) |
@@ -128,8 +128,8 @@
 | 80 | `connectrpc.com/cors` for header lists | Official package. Tracks protocol changes. | [10](10-cors.md) |
 | 81 | `rs/cors` for middleware | Most widely used. Standard `net/http` middleware. | [10](10-cors.md) |
 | 82 | `AllowCredentials: false` for the default bearer-token SPA flow | Browser auth uses `Authorization` headers, not cookies. Preflight still happens, but credential mode is not required. | [10](10-cors.md) |
-| 83 | Explicit origins even without cookie auth | Bearer-token CORS can technically use `*`, but Forge keeps an explicit allowlist for a clearer browser contract. | [10](10-cors.md) |
-| 84 | Explicit allowed origins in config | Standard Forge dev is same-origin through Go. Separate browser origins must be listed explicitly. | [10](10-cors.md) |
+| 83 | Explicit origins even without cookie auth | Bearer-token CORS can technically use `*`, but Gofra keeps an explicit allowlist for a clearer browser contract. | [10](10-cors.md) |
+| 84 | Explicit allowed origins in config | Standard Gofra dev is same-origin through Go. Separate browser origins must be listed explicitly. | [10](10-cors.md) |
 | 85 | CORS middleware first in chain | Preflight OPTIONS must be handled before routing. | [10](10-cors.md) |
 | 86 | `MaxAge: 7200` | Chrome's maximum. Reduces preflight requests. | [10](10-cors.md) |
 | 87 | `idempotency_level = NO_SIDE_EFFECTS` for reads | Enables Connect GET. Avoids CORS preflight. | [10](10-cors.md) |
@@ -152,8 +152,8 @@
 | # | Decision | Rationale | Doc |
 |---|----------|-----------|-----|
 | 96 | Connect error codes only, no custom codes | Standard set. Same as gRPC and AIP-193. | [09](09-errors.md) |
-| 97 | `forge.NotFound()`, `forge.Internal()` helpers | Consistent construction with proper error details. | [09](09-errors.md) |
-| 98 | `forge.Internal()` logs but hides original error | Security. No stack traces reaching clients. | [09](09-errors.md) |
+| 97 | `gofra.NotFound()`, `gofra.Internal()` helpers | Consistent construction with proper error details. | [09](09-errors.md) |
+| 98 | `gofra.Internal()` logs but hides original error | Security. No stack traces reaching clients. | [09](09-errors.md) |
 | 99 | `BadRequest` with `FieldViolation` for validation | Google's standard type. Typed in Go and TypeScript. | [09](09-errors.md) |
 | 100 | Restate: terminal vs retryable framework | "Will retrying fix this?" Terminal for logic errors. | [09](09-errors.md) |
 | 101 | No custom failed-jobs dashboard | Restate UI + admin API + OTEL traces cover this. | [09](09-errors.md) |

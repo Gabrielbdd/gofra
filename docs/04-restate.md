@@ -6,13 +6,13 @@
 ## Design Principle
 
 Restate is not an optional backend. It is the runtime for all durable operations
-in Forge. The framework uses Restate's SDK directly — no wrappers, no abstraction
-layers. Forge provides the HTTP/RPC layer, data access, validation, auth/authz
+in Gofra. The framework uses Restate's SDK directly — no wrappers, no abstraction
+layers. Gofra provides the HTTP/RPC layer, data access, validation, auth/authz
 integration, static asset serving, and developer tooling. Restate provides
 durable execution, state machines, workflows, scheduling, and reliable
 messaging.
 
-The developer writes Restate handlers using the Restate Go SDK. Forge's job is to
+The developer writes Restate handlers using the Restate Go SDK. Gofra's job is to
 make this ergonomic: scaffolding, auto-registration, dev server management, testing
 helpers, and glue between HTTP and Restate.
 
@@ -25,7 +25,7 @@ helpers, and glue between HTTP and Restate.
                         │
                         ▼
               ┌─────────────────────┐
-              │   Forge HTTP Server │  :3000
+              │   Gofra HTTP Server │  :3000
               │   (chi router)      │
               │                     │
               │ • Routes & Middleware│
@@ -50,7 +50,7 @@ helpers, and glue between HTTP and Restate.
                      │ HTTP/2 bidirectional
                      ▼
               ┌─────────────────────┐
-              │ Forge Service       │  :9080
+              │ Gofra Service       │  :9080
               │ Endpoint            │
               │ (same Go binary)    │
               │                     │
@@ -75,7 +75,7 @@ Restate Server in development.
 
 ## What Restate Replaces
 
-| Old Forge Subsystem | Replaced By | Restate Primitive |
+| Old Gofra Subsystem | Replaced By | Restate Primitive |
 |---------------------|-------------|-------------------|
 | Queue + Workers | Restate Services | `ServiceSend` → durable handler |
 | Job retry/backoff | Restate retry policy | Service-level config |
@@ -92,7 +92,7 @@ Restate Server in development.
 | Payment confirmation flow | Workflow + Durable Promise | Suspend until provider webhook arrives |
 | Manual approval flow | Workflow + Durable Promise | Suspend until a user or admin confirms |
 
-## What Forge Keeps
+## What Gofra Keeps
 
 | Subsystem | Why It Stays |
 |-----------|-------------|
@@ -109,7 +109,7 @@ Restate Server in development.
 | I18n | Localization is a rendering concern |
 | Mail (building messages) | Template + send logic. Sending happens inside a Restate `Run` for durability. |
 | Full-text Search | Scout-like abstraction over Postgres FTS / Meilisearch |
-| Testing framework | Forge provides test helpers, wraps Restate's test environment |
+| Testing framework | Gofra provides test helpers, wraps Restate's test environment |
 | CLI tooling | Generators, dev server, deployment |
 | Observability | Structured logging. Restate UI handles job/workflow visibility. |
 
@@ -120,7 +120,7 @@ Restate Server in development.
 ```
 myapp/
 ├── cmd/app/main.go              # Boots HTTP + Restate endpoint
-├── forge.yaml                   # Framework config
+├── gofra.yaml                   # Framework config
 ├── sqlc.yaml                    # sqlc configuration
 ├── .env
 │
@@ -200,15 +200,15 @@ package main
 func main() {
     ctx := context.Background()
     cfg, _ := config.Load()
-    db, _ := forge.OpenDB(cfg.Database)
+    db, _ := gofra.OpenDB(cfg.Database)
     queries := sqlc.New(db)
-    restateClient := forge.NewRestateClient(cfg.Restate.IngressURL)
+    restateClient := gofra.NewRestateClient(cfg.Restate.IngressURL)
 
     mux := chi.NewRouter()
     interceptors := connect.WithInterceptors(
-        forge.OTELInterceptor(),
+        gofra.OTELInterceptor(),
         protovalidate.NewInterceptor(),
-        forge.AuthInterceptor(cfg.Auth),
+        gofra.AuthInterceptor(cfg.Auth),
     )
 
     postsPath, postsHandler := postsv1connect.NewPostsServiceHandler(
@@ -217,7 +217,7 @@ func main() {
     )
     mux.Mount(postsPath, postsHandler)
 
-    forge.Serve(ctx, forge.ServeConfig{
+    gofra.Serve(ctx, gofra.ServeConfig{
         HTTPHandler: mux,
         HTTPAddr:    fmt.Sprintf(":%d", cfg.App.Port),
         RestateAddr: fmt.Sprintf(":%d", cfg.Restate.ServicePort),
@@ -322,7 +322,7 @@ func (s *PostsService) CreatePost(
 ```
 
 The injected `RestateClient` is a thin wrapper around the Restate ingress client,
-pre-configured with the Restate server URL from `forge.yaml`. It provides:
+pre-configured with the Restate server URL from `gofra.yaml`. It provides:
 
 ```go
 type RestateClient struct { /* ... */ }
@@ -346,15 +346,15 @@ boilerplate and reads the URL from config. No magic.
 
 ### Events & Listeners → Durable One-Way Messages
 
-In Laravel, you define events and map them to listeners. In Forge+Restate,
+In Laravel, you define events and map them to listeners. In Gofra+Restate,
 an "event" is just a one-way message to one or more Restate Services.
 
 ```go
 // config/events.go
 package config
 
-func Events() forge.EventMap {
-    return forge.EventMap{
+func Events() gofra.EventMap {
+    return gofra.EventMap{
         "post.created": {
             {Service: "SearchIndexer", Handler: "IndexPost"},
             {Service: "WebhookDelivery", Handler: "DeliverPostCreated"},
@@ -502,7 +502,7 @@ func (s *NotificationsService) GetUnreadCount(
     ctx context.Context,
     req *connect.Request[notificationsv1.GetUnreadCountRequest],
 ) (*connect.Response[notificationsv1.GetUnreadCountResponse], error) {
-    count, err := forge.RestateRequest[int](ctx, s.Restate, "NotificationFeed", req.Msg.UserId, "GetUnreadCount", nil)
+    count, err := gofra.RestateRequest[int](ctx, s.Restate, "NotificationFeed", req.Msg.UserId, "GetUnreadCount", nil)
     if err != nil {
         count = 0 // graceful degradation
     }
@@ -690,19 +690,19 @@ func scheduleNext(ctx restate.ObjectContext, req ScheduleRequest) (*ScheduleInfo
 }
 ```
 
-**Forge registers schedules at boot from config:**
+**Gofra registers schedules at boot from config:**
 
 ```go
 // config/schedules.go
-func Schedules() []forge.Schedule {
-    return []forge.Schedule{
+func Schedules() []gofra.Schedule {
+    return []gofra.Schedule{
         {Key: "cleanup", Cron: "0 2 * * *", Service: "CleanupService", Handler: "PruneTokens"},
         {Key: "digest", Cron: "0 9 * * 1", Service: "DigestService", Handler: "SendWeekly"},
         {Key: "health", Cron: "*/15 * * * *", Service: "HealthService", Handler: "CheckAPIs"},
     }
 }
 
-// On app.Start(), Forge calls:
+// On app.Start(), Gofra calls:
 // for _, s := range config.Schedules() {
 //     restateClient.Object("Scheduler", s.Key, "Create").Send(ScheduleRequest{...})
 // }
@@ -713,11 +713,11 @@ func Schedules() []forge.Schedule {
 
 ## The HTTP ↔ Restate Bridge
 
-The glue between Forge's request layer and Restate is minimal. RPC services and
+The glue between Gofra's request layer and Restate is minimal. RPC services and
 plain HTTP handlers both use the same pre-configured ingress client:
 
 ```go
-// forge/restate_client.go
+// gofra/restate_client.go
 type RestateClient struct {
     client *restateingress.Client
 }
@@ -774,47 +774,47 @@ framework-owned queue abstraction.
 
 ```bash
 # === Project ===
-forge new myapp                              # scaffold (includes Restate in docker-compose)
-forge dev                                    # HTTP + Restate service endpoint + auto-start Restate Server
-forge build                                  # compile binary (HTTP + Restate endpoint)
+gofra new myapp                              # scaffold (includes Restate in docker-compose)
+gofra dev                                    # HTTP + Restate service endpoint + auto-start Restate Server
+gofra build                                  # compile binary (HTTP + Restate endpoint)
 
 # === Generators ===
-forge generate model Post title:string body:text
-forge generate rpc Posts
-forge generate migration add_views_to_posts
+gofra generate model Post title:string body:text
+gofra generate rpc Posts
+gofra generate migration add_views_to_posts
 
 # Restate-specific generators:
-forge generate service ProcessPodcast        # → app/services/process_podcast.go
-forge generate object ShoppingCart           # → app/objects/shopping_cart.go
-forge generate workflow OrderCheckout        # → app/workflows/order_checkout.go
-forge generate schedule daily-cleanup        # → adds to config/schedules.go
+gofra generate service ProcessPodcast        # → app/services/process_podcast.go
+gofra generate object ShoppingCart           # → app/objects/shopping_cart.go
+gofra generate workflow OrderCheckout        # → app/workflows/order_checkout.go
+gofra generate schedule daily-cleanup        # → adds to config/schedules.go
 
 # === Database ===
-forge migrate
-forge migrate rollback
-forge db seed
+gofra migrate
+gofra migrate rollback
+gofra db seed
 
 # === Restate ===
-forge restate status                         # show registered services, pending invocations
-forge restate invocations                    # list active/failed invocations
-forge restate retry <invocation-id>          # retry a failed invocation
-forge restate cancel <invocation-id>         # cancel an invocation
-forge restate purge <invocation-id>          # purge completed invocation
-forge restate ui                             # open Restate UI in browser
+gofra restate status                         # show registered services, pending invocations
+gofra restate invocations                    # list active/failed invocations
+gofra restate retry <invocation-id>          # retry a failed invocation
+gofra restate cancel <invocation-id>         # cancel an invocation
+gofra restate purge <invocation-id>          # purge completed invocation
+gofra restate ui                             # open Restate UI in browser
 
 # These are thin wrappers around the `restate` CLI / admin API.
 # The Restate UI at :9070 is the primary debugging tool.
 
 # === Other ===
-forge routes                                 # list HTTP routes
-forge tinker                                 # REPL
-forge build                                  # single binary
+gofra routes                                 # list HTTP routes
+gofra tinker                                 # REPL
+gofra build                                  # single binary
 ```
 
-### What `forge generate service` produces:
+### What `gofra generate service` produces:
 
 ```bash
-$ forge generate service ProcessPodcast
+$ gofra generate service ProcessPodcast
 ```
 
 ```go
@@ -850,10 +850,10 @@ And auto-adds to `cmd/app/main.go`:
 r.Service(services.ProcessPodcast{})
 ```
 
-### What `forge generate workflow` produces:
+### What `gofra generate workflow` produces:
 
 ```bash
-$ forge generate workflow OrderCheckout
+$ gofra generate workflow OrderCheckout
 ```
 
 ```go
@@ -895,10 +895,10 @@ func (OrderCheckout) Run(ctx restate.WorkflowContext, req OrderCheckoutRequest) 
 
 ```go
 func TestListPosts(t *testing.T) {
-    db := forge.TestDB(t)
+    db := gofra.TestDB(t)
     factory.CreateMany[models.Post](db, 5)
 
-    recorder := forge.NewRestateRecorder()
+    recorder := gofra.NewRestateRecorder()
     svc := &rpc.PostsService{Queries: sqlc.New(db), Restate: recorder}
 
     _, handler := postsv1connect.NewPostsServiceHandler(svc)
@@ -980,10 +980,10 @@ func TestOrderCheckoutWorkflow(t *testing.T) {
 ## Development Experience
 
 ```bash
-$ forge dev
+$ gofra dev
 
   ╭──────────────────────────────────────────────╮
-  │  Forge v1.0                                  │
+  │  Gofra v1.0                                  │
   │                                              │
   │  HTTP:     http://localhost:3000              │
   │  Restate:  http://localhost:8080  (ingress)   │
@@ -1009,7 +1009,7 @@ $ forge dev
   ╰──────────────────────────────────────────────╯
 ```
 
-`forge dev` does:
+`gofra dev` does:
 1. Starts the Restate Server binary (downloads on first run)
 2. Starts the HTTP server with hot reload
 3. Starts the Restate service endpoint
@@ -1031,7 +1031,7 @@ This replaces Laravel Telescope and Horizon for background job visibility, with
 ## Production Deployment
 
 ```bash
-forge build
+gofra build
 # Produces a single binary that runs:
 #   - HTTP server
 #   - Restate service endpoint
@@ -1041,11 +1041,11 @@ forge build
 
 Production setup:
 1. Run the Restate Server (single binary or HA cluster)
-2. Run your Forge app (single binary)
-3. The Forge app connects to Restate on startup and registers its services
+2. Run your Gofra app (single binary)
+3. The Gofra app connects to Restate on startup and registers its services
 
 ```yaml
-# forge.yaml (production)
+# gofra.yaml (production)
 app:
   env: production
   port: 3000

@@ -47,7 +47,7 @@ destroys data for a clean start.
 
 ```yaml
 # docker-compose.yml
-# Infrastructure services for local Forge development.
+# Infrastructure services for local Gofra development.
 # The Go server and Vite frontend run on the host via `mise run dev`.
 
 services:
@@ -55,8 +55,8 @@ services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: forge
-      POSTGRES_PASSWORD: forge
+      POSTGRES_USER: gofra
+      POSTGRES_PASSWORD: gofra
       POSTGRES_DB: forge_dev
     ports:
       - "5432:5432"
@@ -65,7 +65,7 @@ services:
       # Create Zitadel's database on first start
       - ./docker/init-dbs.sql:/docker-entrypoint-initdb.d/init-dbs.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U forge"]
+      test: ["CMD-SHELL", "pg_isready -U gofra"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -102,13 +102,13 @@ services:
       ZITADEL_DATABASE_POSTGRES_USER_USERNAME: zitadel
       ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: zitadel
       ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
-      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: forge
-      ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: forge
+      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: gofra
+      ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: gofra
       ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE: disable
       ZITADEL_EXTERNALSECURE: "false"
       ZITADEL_EXTERNALPORT: 8081
       ZITADEL_EXTERNALDOMAIN: localhost
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: admin@forge.local
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: admin@gofra.local
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: "Admin1234!"
     ports:
       - "8081:8080"   # Zitadel UI + API (http://localhost:8081)
@@ -157,7 +157,7 @@ Postgres instance often hosts multiple databases.
 
 | Port | Service | Purpose |
 |------|---------|---------|
-| 3000 | Go server (host) | Browser entrypoint, Connect RPC API, `/_forge/config.js` |
+| 3000 | Go server (host) | Browser entrypoint, Connect RPC API, `/_gofra/config.js` |
 | 5173 | Vite (host) | Frontend dev server with HMR (behind Go proxy) |
 | 5432 | Postgres (Docker) | Database |
 | 8080 | Restate (Docker) | Ingress — app sends durable invocations here |
@@ -189,7 +189,7 @@ mise install
 cd web && npm install && cd ..
 
 # 4. Configure Zitadel (one-time)
-#    Open http://localhost:8081, login as admin@forge.local / Admin1234!
+#    Open http://localhost:8081, login as admin@gofra.local / Admin1234!
 #    Create a project, application, and note the client_id
 #    Copy client_id to .env file
 
@@ -295,7 +295,7 @@ lost if the Restate container restarts.
 # Created once during setup, values come from Zitadel console
 
 # Database
-DATABASE_URL=postgres://forge:forge@localhost:5432/forge_dev?sslmode=disable
+DATABASE_URL=postgres://gofra:gofra@localhost:5432/forge_dev?sslmode=disable
 
 # Restate
 RESTATE_INGRESS_URL=http://localhost:8080
@@ -310,11 +310,11 @@ ZITADEL_SERVICE_ACCOUNT_KEY=<path-to-json-key>
 OTEL_EXPORTER_OTLP_ENDPOINT=localhost:4317
 ```
 
-**Reason for `.env` separate from `forge.yaml`**: `forge.yaml` contains
+**Reason for `.env` separate from `gofra.yaml`**: `gofra.yaml` contains
 project defaults (checked into git). `.env` contains machine-specific values
 (not checked in): Zitadel client IDs that differ per developer, database
 passwords, service account keys. The koanf config loader reads both — env
-vars from `.env` override values in `forge.yaml`.
+vars from `.env` override values in `gofra.yaml`.
 
 ---
 
@@ -387,7 +387,7 @@ On first `docker compose up`, Zitadel initializes itself (`start-from-init`):
 
 1. Creates its database schemas in the `zitadel` Postgres database
 2. Creates a default instance and organization
-3. Creates an admin user (`admin@forge.local` / `Admin1234!`)
+3. Creates an admin user (`admin@gofra.local` / `Admin1234!`)
 
 The developer then manually:
 
@@ -400,7 +400,7 @@ The developer then manually:
 **Reason for manual Zitadel setup**: Automating Zitadel project/application
 creation requires calling the Zitadel API with a service account — which
 itself requires a project and application to exist (chicken-and-egg). The
-manual setup takes 2 minutes and happens once. A future `forge setup` CLI
+manual setup takes 2 minutes and happens once. A future `gofra setup` CLI
 command could automate this using Zitadel's machine-to-machine bootstrap flow.
 
 ---

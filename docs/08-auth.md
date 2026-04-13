@@ -10,37 +10,37 @@
 
 ## The Decision: Couple with Zitadel
 
-Forge delegates all identity concerns to Zitadel. The framework does not
+Gofra delegates all identity concerns to Zitadel. The framework does not
 implement user registration, login, password hashing, session management,
 MFA, social login, or user storage. Zitadel owns these.
 
-Forge owns authorization enforcement — checking whether an authenticated
+Gofra owns authorization enforcement — checking whether an authenticated
 user is allowed to perform a specific action on a specific resource. This
-is the line: **Zitadel answers "who is this person?" Forge answers "can this
+is the line: **Zitadel answers "who is this person?" Gofra answers "can this
 person do this thing?"**
 
 ### V1 Client Auth Model
 
-Forge v1 standardizes on one auth family for all human-operated clients:
+Gofra v1 standardizes on one auth family for all human-operated clients:
 direct OpenID Connect Authorization Code flow against Zitadel. The browser
 SPA uses Authorization Code + PKCE as a public client. Native mobile and
 desktop clients use the same Authorization Code + PKCE pattern with
 platform-native redirect handling and OS-managed secure storage.
 
-Forge does **not** introduce a backend-for-frontend (BFF) session layer for
+Gofra does **not** introduce a backend-for-frontend (BFF) session layer for
 the default web client in v1. Browser clients authenticate directly with
-Zitadel and call Forge with bearer access tokens. This keeps the browser,
+Zitadel and call Gofra with bearer access tokens. This keeps the browser,
 mobile, and desktop stories aligned on one protocol family and one backend
 validation path while the framework contract is still being stabilized.
 
 This is an explicit v1 simplification, not a statement that a BFF is never
-useful. If Forge later needs a stronger default web posture around token
+useful. If Gofra later needs a stronger default web posture around token
 handling, that can be revisited as a new architectural decision instead of
 remaining ambiguous in the docs.
 
 ### Browser SPA Defaults
 
-Forge keeps the browser contract narrow and explicit:
+Gofra keeps the browser contract narrow and explicit:
 
 - `react-oidc-context` is the default React integration layer.
 - The browser token set lives in `sessionStorage`.
@@ -51,16 +51,16 @@ Forge keeps the browser contract narrow and explicit:
   signed out.
 - Logout clears browser auth state first and then redirects through Zitadel's
   end-session flow.
-- Forge does not promise cross-device or "log out everywhere" behavior in v1.
+- Gofra does not promise cross-device or "log out everywhere" behavior in v1.
 
 **Reason for `sessionStorage`**: it survives a normal page reload, which keeps
 the browser UX usable, but it does not persist across full browser restarts the
-way `localStorage` does. Forge is choosing the simpler v1 tradeoff between
+way `localStorage` does. Gofra is choosing the simpler v1 tradeoff between
 reload ergonomics and limiting token persistence.
 
 **Reason for refresh tokens in the browser**: without a BFF, the SPA needs a
 renewal path that does not force a full redirect loop every time the access
-token expires. Forge standardizes on rotating refresh tokens rather than
+token expires. Gofra standardizes on rotating refresh tokens rather than
 multiple competing browser renewal patterns.
 
 **Reason for one bootstrap refresh attempt**: auth startup should be
@@ -69,25 +69,25 @@ tab was closed" case without hiding retry loops inside framework scaffolding.
 
 ### Native Client Defaults
 
-Forge uses the same OIDC code-flow family for native clients, but the storage
+Gofra uses the same OIDC code-flow family for native clients, but the storage
 and redirect mechanics are platform-native:
 
 - Native apps use the system browser for login.
 - Redirects use a custom URI scheme or loopback callback.
 - Tokens live in OS-managed secure storage such as Keychain, Keystore, or the
   platform credential manager.
-- Embedded webviews are not the Forge default.
+- Embedded webviews are not the Gofra default.
 
 ### Why Zitadel specifically
 
 **Protocol alignment.** Zitadel's v2 API speaks Connect RPC — the same
-protocol Forge uses. The API paths are `/zitadel.user.v2.UserService/`,
-`/zitadel.org.v2.OrganizationService/`, etc. This means Forge's backend can
+protocol Gofra uses. The API paths are `/zitadel.user.v2.UserService/`,
+`/zitadel.org.v2.OrganizationService/`, etc. This means Gofra's backend can
 call Zitadel's APIs using the same Connect client libraries it uses internally.
 No REST-to-gRPC translation. No separate HTTP client. Same tooling, same
 interceptors, same error handling patterns.
 
-**Written in Go.** Zitadel is a Go binary with Postgres. Forge is a Go binary
+**Written in Go.** Zitadel is a Go binary with Postgres. Gofra is a Go binary
 with Postgres. Same language, same runtime, same deployment model. The
 `zitadel/oidc` library is the most complete OIDC implementation in Go — it
 supports both Relying Party (client) and OpenID Provider (server) roles, is
@@ -100,17 +100,17 @@ If an app is simple, it can still live inside one default organization. If it
 grows into a multi-tenant SaaS later, the identity model is already there.
 
 **Single binary, self-hostable.** Zitadel runs as one binary with one Postgres
-database (which can be the same Postgres instance Forge uses, in a separate
-database). No Redis, no Kafka, no ElasticSearch. Matches Forge's minimal
+database (which can be the same Postgres instance Gofra uses, in a separate
+database). No Redis, no Kafka, no ElasticSearch. Matches Gofra's minimal
 deployment philosophy.
 
-**Everything Forge would need to build is already there.** User registration,
+**Everything Gofra would need to build is already there.** User registration,
 email verification, password reset, MFA/TOTP/passkeys, social login
 (Google/GitHub/Apple/SAML), account lockout policies, password complexity
 policies, branding/theming, audit logs (event-sourced — every mutation is
 an immutable event), user metadata, service accounts for machine-to-machine.
 
-### What Forge does NOT delegate
+### What Gofra does NOT delegate
 
 - **Resource-level authorization.** "Can user X edit post Y?" requires
   knowledge of the resource (who owns the post, what's the post's status).
@@ -122,7 +122,7 @@ an immutable event), user metadata, service accounts for machine-to-machine.
 
 - **Application data.** Users in Zitadel are identity records (name, email,
   credentials). Application-specific user data (preferences, billing, avatar)
-  lives in Forge's Postgres, linked by Zitadel's user ID.
+  lives in Gofra's Postgres, linked by Zitadel's user ID.
 
 ---
 
@@ -141,7 +141,7 @@ an immutable event), user metadata, service accounts for machine-to-machine.
        │                                      │  - Audit Log     │
        ▼                                      └──────────────────┘
 ┌──────────────────────────────────┐                    │
-│        Forge API Server          │                    │
+│        Gofra API Server          │                    │
 │                                  │   JWKS validation  │
 │  ┌───────────────────────────┐   │◄───────────────────┘
 │  │ AuthInterceptor           │   │   (fetch public keys)
@@ -236,7 +236,7 @@ include the user's project roles in the token claims. Without this scope, the
 token contains identity but no role information, and the API would need a
 separate call to Zitadel to fetch roles.
 
-**Reason for `offline_access` in the SPA scope**: Forge's direct-browser
+**Reason for `offline_access` in the SPA scope**: Gofra's direct-browser
 contract depends on refresh tokens for normal session continuity. Without
 `offline_access`, the browser would need a full authorization redirect whenever
 the access token expired.
@@ -249,7 +249,7 @@ signed in.
 ### Token Validation in the AuthInterceptor
 
 ```go
-// forge/auth_interceptor.go
+// gofra/auth_interceptor.go
 
 type AuthInterceptor struct {
     verifier *auth.AccessTokenVerifier
@@ -313,7 +313,7 @@ dependency on Zitadel availability for every API call.
 
 ### Public RPCs vs Protected RPCs
 
-Forge treats Connect RPCs as private by default. Public RPCs are an explicit
+Gofra treats Connect RPCs as private by default. Public RPCs are an explicit
 allowlist:
 
 ```go
@@ -332,7 +332,7 @@ Everything not in this allowlist requires a valid access token. Health checks
 are plain HTTP endpoints outside the Connect auth interceptor.
 
 Admin RPCs are never public. They require normal user authentication plus
-application permission checks, and only then does Forge call Zitadel's
+application permission checks, and only then does Gofra call Zitadel's
 management APIs using a service account.
 
 ---
@@ -348,9 +348,9 @@ doesn't know what these strings mean — it just stores and returns them.
 The roles are included in the JWT claims when the user authenticates
 (via the `urn:zitadel:iam:org:projects:roles` scope).
 
-### Layer 2: Permission Mapping (in Forge)
+### Layer 2: Permission Mapping (in Gofra)
 
-Forge maps roles to permissions. This is application logic, not Zitadel
+Gofra maps roles to permissions. This is application logic, not Zitadel
 configuration.
 
 ```go
@@ -462,16 +462,16 @@ resource-level authorization. This is the natural separation.
 | Organization membership | Zitadel | Zitadel's Postgres |
 | MFA enrollment | Zitadel | Zitadel's Postgres |
 | Audit log (login events, role changes) | Zitadel | Zitadel's event store |
-| App preferences (theme, language, notifications) | Forge | Forge's Postgres |
-| App profile (bio, avatar, social links) | Forge | Forge's Postgres |
-| Billing / subscription | Forge | Forge's Postgres |
-| Content (posts, comments, uploads) | Forge | Forge's Postgres |
+| App preferences (theme, language, notifications) | Gofra | Gofra's Postgres |
+| App profile (bio, avatar, social links) | Gofra | Gofra's Postgres |
+| Billing / subscription | Gofra | Gofra's Postgres |
+| Content (posts, comments, uploads) | Gofra | Gofra's Postgres |
 
 **Reason for the split**: Zitadel owns identity because it's the single source
-of truth for "who is this person and can they prove it." Forge owns application
+of truth for "who is this person and can they prove it." Gofra owns application
 data because Zitadel shouldn't know about posts, billing, or app preferences.
 The link between them is `user.ID` (Zitadel's user ID), which is stored in
-Forge's tables as a foreign reference.
+Gofra's tables as a foreign reference.
 
 ### App-Side User Record
 
@@ -495,7 +495,7 @@ joins. The field name makes the data source explicit.
 
 ### User Provisioning: Just-In-Time
 
-When a user first authenticates and calls a Forge API, they may not have
+When a user first authenticates and calls a Gofra API, they may not have
 a `user_profiles` row yet. The handler creates one on first access:
 
 ```go
@@ -517,17 +517,17 @@ func ensureUserProfile(ctx context.Context, queries *sqlc.Queries, user auth.Use
 }
 ```
 
-**Reason for JIT provisioning**: No sync process between Zitadel and Forge.
+**Reason for JIT provisioning**: No sync process between Zitadel and Gofra.
 No webhook to keep in sync. The user profile is created the first time the
 user hits the API. Simple, reliable, no moving parts.
 
 ### Admin User Management
 
 For admin panels (listing users, assigning roles, deactivating accounts),
-Forge calls Zitadel's Management API using a service account:
+Gofra calls Zitadel's Management API using a service account:
 
 ```go
-// forge/zitadel_client.go
+// gofra/zitadel_client.go
 
 type ZitadelClient struct {
     userService    zitadeluserv2.UserServiceClient
@@ -542,7 +542,7 @@ func NewZitadelClient(issuerURL, serviceAccountKeyPath string) (*ZitadelClient, 
 }
 ```
 
-Admin-facing Connect handlers in Forge proxy to Zitadel:
+Admin-facing Connect handlers in Gofra proxy to Zitadel:
 
 ```go
 // app/rpc/admin_service.go
@@ -575,8 +575,8 @@ func (s *AdminService) ListUsers(
 }
 ```
 
-**Reason for proxying through Forge instead of calling Zitadel directly from
-the SPA**: The SPA shouldn't have admin-level Zitadel credentials. Forge acts
+**Reason for proxying through Gofra instead of calling Zitadel directly from
+the SPA**: The SPA shouldn't have admin-level Zitadel credentials. Gofra acts
 as a gateway — it enforces authorization (does this user have `user.manage`
 permission?) before forwarding the request to Zitadel with service account
 credentials.
@@ -585,11 +585,11 @@ credentials.
 
 ## Zitadel Setup: Concepts Mapping
 
-| Zitadel Concept | Forge Usage |
+| Zitadel Concept | Gofra Usage |
 |-----------------|-------------|
 | **Instance** | One per deployment (dev, staging, prod) |
 | **Organization** | One per tenant (B2C: single org for all users. B2B: one org per customer) |
-| **Project** | One per Forge application (contains the app's roles) |
+| **Project** | One per Gofra application (contains the app's roles) |
 | **Application** | Three: one User Agent app for the browser SPA, one Native app for mobile/desktop, one JWT-profile app for the service account |
 | **Roles** | Application-level roles: `admin`, `editor`, `viewer`, etc. |
 | **User Grants** | Assigns a user to a role within the project |
@@ -621,7 +621,7 @@ services:
 ```
 
 ```yaml
-# forge.yaml
+# gofra.yaml
 auth:
   issuer: "http://localhost:8080"
   audience: "myapp-api"
@@ -647,7 +647,7 @@ auth:
 ### Auth Library
 
 The default React integration is `react-oidc-context`, which wraps
-`oidc-client-ts` without forcing Forge to invent its own client-side auth
+`oidc-client-ts` without forcing Gofra to invent its own client-side auth
 abstraction:
 
 ```tsx
@@ -671,12 +671,12 @@ export function AppAuthProvider({ children }) {
 }
 ```
 
-**Reason for `react-oidc-context`**: Forge ships a React SPA by default. The
+**Reason for `react-oidc-context`**: Gofra ships a React SPA by default. The
 framework should standardize on one React-friendly OIDC integration instead of
 describing multiple incompatible frontend auth layers.
 
 **Reason auth config comes from `runtimeConfig` instead of `import.meta.env`**:
-OIDC issuer and client IDs are deployment settings. Forge loads them from the
+OIDC issuer and client IDs are deployment settings. Gofra loads them from the
 Go-served public runtime config so the SPA bundle does not need rebuilding per
 environment.
 
@@ -704,7 +704,7 @@ function RequireAuth({ children }) {
 }
 ```
 
-Forge keeps the route model explicit:
+Gofra keeps the route model explicit:
 
 - `/`, `/login`, and `/auth/callback` are public routes.
 - Application routes under `/app` require authentication.
@@ -755,7 +755,7 @@ business hours"), Zitadel integrates with external authorization services:
 - **Permify** (Google Zanzibar-based)
 
 These services consume Zitadel's user/role data and add fine-grained
-policy evaluation. Forge can integrate with them as a future addendum.
+policy evaluation. Gofra can integrate with them as a future addendum.
 The current architecture doesn't preclude this — the `HasPermission`
 function is the seam where a policy engine can be plugged in.
 
@@ -772,9 +772,9 @@ function is the seam where a policy engine can be plugged in.
 | 71 | Roles in Zitadel, permissions in Go | Zitadel manages role assignment. Application defines what roles mean (permissions). Clean separation. |
 | 72 | Static role→permission map | Small, changes with code deploys, testable. Can move to DB later without changing the interface. |
 | 73 | Resource-level authz in RPC handlers, not interceptor | Requires loading the resource. Can't check "can edit this post" without knowing who owns it. |
-| 74 | JIT user profile creation | No sync between Zitadel and Forge. Profile created on first API call. No webhooks, no eventual consistency. |
+| 74 | JIT user profile creation | No sync between Zitadel and Gofra. Profile created on first API call. No webhooks, no eventual consistency. |
 | 75 | `zitadel_user_id TEXT` as PK | Zitadel IDs are opaque strings. Direct PK avoids surrogate key and simplifies joins. |
-| 76 | Admin handlers proxy to Zitadel via service account | SPA doesn't get admin Zitadel credentials. Forge enforces authz before forwarding. |
+| 76 | Admin handlers proxy to Zitadel via service account | SPA doesn't get admin Zitadel credentials. Gofra enforces authz before forwarding. |
 | 77 | No BFF/session-cookie default for browser clients | Keep the v1 surface smaller and backend auth validation consistent across browser, mobile, and desktop. Revisit later if needed. |
 | 78 | `urn:zitadel:iam:org:projects:roles` scope | Includes roles in the token. No extra API call to fetch roles on every request. |
 | 79 | Frontend permission checks are display-only | UI shows/hides buttons. Server always re-checks. Never trust the client. |

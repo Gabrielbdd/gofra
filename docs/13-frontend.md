@@ -42,12 +42,12 @@ export const transport = createConnectTransport({
 
 ## Runtime Browser Config
 
-The browser does not read deploy-time settings from `import.meta.env`. Forge
+The browser does not read deploy-time settings from `import.meta.env`. Gofra
 serves a generated public runtime config asset from the Go server:
 
 ```html
 <!-- web/index.html -->
-<script src="/_forge/config.js"></script>
+<script src="/_gofra/config.js"></script>
 <script type="module" src="/src/main.tsx"></script>
 ```
 
@@ -73,8 +73,8 @@ message AuthConfig {
 }
 ```
 
-Forge generates the frontend loader, so application code does not touch
-`window.__FORGE_CONFIG__` directly:
+Gofra generates the frontend loader, so application code does not touch
+`window.__GOFRA_CONFIG__` directly:
 
 ```ts
 // web/src/lib/runtime-config.ts
@@ -89,10 +89,10 @@ The generated frontend files are:
   schema
 - `web/src/gen/runtime/runtime-config.ts` for the generated loader APIs
 - `web/src/gen/runtime/runtime-config.global.d.ts` for the `Window`
-  augmentation of `__FORGE_CONFIG__`
+  augmentation of `__GOFRA_CONFIG__`
 - `web/src/lib/runtime-config.ts` as the app-owned re-export layer
 
-The generated loader reads `window.__FORGE_CONFIG__`, treats it as `unknown`,
+The generated loader reads `window.__GOFRA_CONFIG__`, treats it as `unknown`,
 validates/parses it using the generated protobuf schema, and exports a typed,
 immutable object.
 
@@ -106,7 +106,7 @@ export function validateRuntimeConfig(value: unknown): RuntimeConfig;
 export function isRuntimeConfig(value: unknown): value is RuntimeConfig;
 ```
 
-On the backend, Forge also generates a convention-first resolver. Proto fields
+On the backend, Gofra also generates a convention-first resolver. Proto fields
 bind to `config.Config` by matching nested names:
 
 - `runtime_config.auth.issuer` -> `cfg.Auth.Issuer`
@@ -117,7 +117,7 @@ The common case is zero handwritten mapping code:
 
 ```go
 resolver := runtimeconfig.NewResolver(appCfg)
-mux.Handle("/_forge/config.js", runtimeconfig.Handler(resolver))
+mux.Handle("/_gofra/config.js", runtimeconfig.Handler(resolver))
 ```
 
 For dynamic values, the app can opt into a small mutator hook:
@@ -155,13 +155,13 @@ error, not a partially recoverable UI state.
 ## Development Mode
 
 **Decision #23.** Browser connects to the Go server (`:3000`) in development.
-The Go server serves `/_forge/config.js`, handles API routes directly, and
+The Go server serves `/_gofra/config.js`, handles API routes directly, and
 proxies frontend asset and page requests to Vite (`:5173`) for HMR.
 
 ```ts
 // cmd/app/dev_proxy.go — conceptual route split
 switch {
-case strings.HasPrefix(path, "/_forge/"):
+case strings.HasPrefix(path, "/_gofra/"):
     serveRuntimeConfig(w, r)
 case strings.HasPrefix(path, "/myapp."):
     apiMux.ServeHTTP(w, r)
@@ -176,7 +176,7 @@ server in development so the browser uses the same origin in dev and prod.
 ## Production Mode
 
 **Decision #25.** `web/dist/` is compiled into the Go binary via `//go:embed`.
-The Go server serves the API, `/_forge/config.js`, and the compiled SPA from the
+The Go server serves the API, `/_gofra/config.js`, and the compiled SPA from the
 same origin. No separate static file server. No CDN required (though one can be
 placed in front).
 
@@ -233,5 +233,5 @@ web/
 | 24 | SPA (no SSR) | Decouples frontend and backend. Contract is the proto file. |
 | 25 | `embed.FS` for production | Single binary deployment. No separate file server. |
 | 29 | No server-side rendering or templates | API-first. Frontend is replaceable. |
-| 130 | Public browser runtime config via generated `/_forge/config.js` loader | Runtime values come from Go without rebuilding the SPA per environment, while staying typed in Go and TS. |
+| 130 | Public browser runtime config via generated `/_gofra/config.js` loader | Runtime values come from Go without rebuilding the SPA per environment, while staying typed in Go and TS. |
 | 131 | Go is the browser entrypoint in dev and proxies Vite | Same browser origin in dev and prod. Vite still provides HMR behind the proxy. |

@@ -10,7 +10,7 @@
 
 ## The Problem
 
-Errors in Forge cross three boundaries:
+Errors in Gofra cross three boundaries:
 
 1. **Handler → Client**: A Connect RPC handler returns an error to the SPA.
    The SPA needs the error code, a human-readable message, and optionally
@@ -61,8 +61,8 @@ The framework provides helper functions that produce consistent errors with
 proper details. Handlers call these instead of constructing errors manually.
 
 ```go
-// forge/errors.go
-package forge
+// gofra/errors.go
+package gofra
 
 import (
     "fmt"
@@ -145,9 +145,9 @@ func (s *PostsService) GetPost(
     post, err := s.Queries.GetPost(ctx, sqlc.GetPostParams{Slug: req.Msg.Slug})
     if err != nil {
         if errors.Is(err, pgx.ErrNoRows) {
-            return nil, forge.NotFound("post", req.Msg.Slug)
+            return nil, gofra.NotFound("post", req.Msg.Slug)
         }
-        return nil, forge.Internal(err)
+        return nil, gofra.Internal(err)
     }
 
     return connect.NewResponse(postRowToProto(post)), nil
@@ -165,9 +165,9 @@ func (s *PostsService) CreatePost(
     })
     if err != nil {
         if isUniqueViolation(err, "posts_slug_key") {
-            return nil, forge.AlreadyExists("post", slugify(req.Msg.Title))
+            return nil, gofra.AlreadyExists("post", slugify(req.Msg.Title))
         }
-        return nil, forge.Internal(err)
+        return nil, gofra.Internal(err)
     }
 
     return connect.NewResponse(postToProto(post)), nil
@@ -182,11 +182,11 @@ returns `CodeInvalidArgument` with `BadRequest` field violations. No
 handler code needed for proto-level validation.
 
 For application-level validation (business rules not expressible in proto
-annotations), handlers use `forge.InvalidArgument()`:
+annotations), handlers use `gofra.InvalidArgument()`:
 
 ```go
 if post.Status == "published" && post.Body == "" {
-    return nil, forge.InvalidArgument(map[string]string{
+    return nil, gofra.InvalidArgument(map[string]string{
         "body": "published posts must have a body",
     })
 }
@@ -328,7 +328,7 @@ are visible through:
 4. **Application logging** — `ctx.Log().Error(...)` in the handler
 
 The framework does not build a custom "failed jobs dashboard." Restate's
-admin API and UI already provide this. Forge's observability layer (slog +
+admin API and UI already provide this. Gofra's observability layer (slog +
 OTEL) ensures errors are visible in the same tools the team uses for
 everything else.
 
@@ -470,7 +470,7 @@ by chi's recovery middleware. The framework wraps the recovered panic into
 a `CodeInternal` error:
 
 ```go
-// forge/recovery.go
+// gofra/recovery.go
 func RecoveryMiddleware(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         defer func() {
@@ -527,10 +527,10 @@ is normal. Logging it at Info or higher creates noise.
 
 ## Error Handling Conventions Summary
 
-1. **Always use the forge error helpers** (`forge.NotFound`, `forge.Internal`,
-   `forge.InvalidArgument`) — they produce consistent errors with proper details.
+1. **Always use the gofra error helpers** (`gofra.NotFound`, `gofra.Internal`,
+   `gofra.InvalidArgument`) — they produce consistent errors with proper details.
 
-2. **Never send internal error messages to clients.** `forge.Internal(err)`
+2. **Never send internal error messages to clients.** `gofra.Internal(err)`
    logs the real error and returns "internal error" to the client.
 
 3. **In Restate handlers, decide: terminal or retryable.** Ask "will retrying
@@ -557,8 +557,8 @@ is normal. Logging it at Info or higher creates noise.
 | # | Decision | Rationale |
 |---|----------|-----------|
 | 96 | Connect error codes only, no custom codes | Standard set. Frontend handles generically. Same as gRPC and AIP-193. |
-| 97 | `forge.NotFound()`, `forge.Internal()` helpers | Enforce consistent error construction with proper details. |
-| 98 | `forge.Internal()` logs but hides original error | Security. Stack traces and internal messages don't reach clients. |
+| 97 | `gofra.NotFound()`, `gofra.Internal()` helpers | Enforce consistent error construction with proper details. |
+| 98 | `gofra.Internal()` logs but hides original error | Security. Stack traces and internal messages don't reach clients. |
 | 99 | `BadRequest` with `FieldViolation` for validation | Google's standard error detail type. Typed in both Go and TypeScript. Enables inline field errors in forms. |
 | 100 | Restate: terminal vs. retryable decision framework | "Will retrying fix this?" is the only question. Terminal for logic errors, retryable for transient failures. |
 | 101 | No custom "failed jobs" dashboard | Restate UI + admin API + OTEL traces cover this. Don't rebuild what exists. |

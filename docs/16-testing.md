@@ -6,7 +6,7 @@
 
 ## Testing Strategy
 
-Forge has three test layers, each testing different things at different speeds.
+Gofra has three test layers, each testing different things at different speeds.
 
 ### Unit Tests (fast, no Docker)
 
@@ -27,10 +27,10 @@ logic, response shape) in-process:
 
 ```go
 func TestListPosts(t *testing.T) {
-    db := forge.TestDB(t)
+    db := gofra.TestDB(t)
     factory.CreateMany[models.Post](db, 5)
 
-    recorder := forge.NewRestateRecorder()
+    recorder := gofra.NewRestateRecorder()
     svc := &rpc.PostsService{Queries: sqlc.New(db), Restate: recorder}
 
     _, handler := postsv1connect.NewPostsServiceHandler(svc)
@@ -63,7 +63,7 @@ Tagged `integration`, run separately:
 //go:build integration
 
 func TestSearchIndexer(t *testing.T) {
-    db := forge.TestDB(t)
+    db := gofra.TestDB(t)
     svc := services.SearchIndexer{Queries: sqlc.New(db)}
 
     env := restatetest.Start(t, restate.Reflect(svc))
@@ -105,15 +105,15 @@ Go-side tests:
   rejection
 - resolver tests for clone semantics, mutator ordering, and error propagation
 - handler tests for `GET`/`HEAD`, content type, `Cache-Control: no-store`, and
-  the JavaScript envelope `window.__FORGE_CONFIG__ = ...`
+  the JavaScript envelope `window.__GOFRA_CONFIG__ = ...`
 - `httptest` integration tests that resolve a real `config.Config`, fetch
-  `/_forge/config.js`, and parse the payload back into the runtime proto
+  `/_gofra/config.js`, and parse the payload back into the runtime proto
 
 Frontend tests:
 
 - unit tests for `loadRuntimeConfig()` and `validateRuntimeConfig()` with a
   valid payload
-- failure tests for missing `window.__FORGE_CONFIG__`, wrong field types, and
+- failure tests for missing `window.__GOFRA_CONFIG__`, wrong field types, and
   missing required auth fields
 - unit tests confirming `auth.ts` and `transport.ts` read from
   `runtimeConfig`, not `import.meta.env`
@@ -126,7 +126,7 @@ tests at the generator, handler, and frontend-loader boundaries.
 
 ## Test Database
 
-`forge.TestDB(t)` creates an isolated test database for each test:
+`gofra.TestDB(t)` creates an isolated test database for each test:
 - Creates a temporary database (or uses a transaction that rolls back)
 - Runs migrations via embedded goose
 - Returns a `*sql.DB` scoped to the test

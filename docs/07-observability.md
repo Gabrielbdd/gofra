@@ -10,7 +10,7 @@
 
 ## The Problem
 
-A Forge application has three execution contexts, each with different
+A Gofra application has three execution contexts, each with different
 observability characteristics:
 
 1. **Connect RPC handlers** — synchronous, request-response. The user is
@@ -128,7 +128,7 @@ Browser
   │  HTTP request (no trace context)
   ▼
 ┌─────────────────────────────────────────────────────┐
-│ Forge Application                                   │
+│ Gofra Application                                   │
 │                                                     │
 │  Connect RPC Handler                                │
 │  ┌───────────────────────────────────────────────┐   │
@@ -196,7 +196,7 @@ func main() {
 
     // ── Application ──────────────────────────────────────
 
-    db, _ := forge.OpenDB(cfg.Database)
+    db, _ := gofra.OpenDB(cfg.Database)
     // ... rest of setup ...
 }
 ```
@@ -204,7 +204,7 @@ func main() {
 ### OTEL Provider Initialization
 
 ```go
-// forge/otel.go
+// gofra/otel.go
 func setupOTEL(ctx context.Context, cfg *config.Config) func(context.Context) error {
     // Trace exporter — sends spans to OTLP collector
     traceExporter, err := otlptracegrpc.New(ctx,
@@ -286,7 +286,7 @@ Connect span to the Restate invocation span.
 ### Logger Setup
 
 ```go
-// forge/logging.go
+// gofra/logging.go
 func setupLogger(cfg *config.Config) *slog.Logger {
     var handler slog.Handler
 
@@ -325,7 +325,7 @@ full request trace. This correlation is automatic — no manual attribute passin
 ### OTEL-Aware slog Handler
 
 ```go
-// forge/otel_slog_handler.go
+// gofra/otel_slog_handler.go
 type OTELHandler struct {
     inner slog.Handler
 }
@@ -470,7 +470,7 @@ post" messages in the logs.
 If the developer uses `slog.InfoContext(ctx, ...)` directly (bypassing the
 Restate logger), the log will emit on every replay. This isn't catastrophic
 but produces confusing duplicate entries. The framework should document this
-in the `forge generate service` template comments.
+in the `gofra generate service` template comments.
 
 ### Restate Server Trace Configuration
 
@@ -498,15 +498,15 @@ Beyond what otelconnect and Restate provide automatically, the application
 can emit custom metrics:
 
 ```go
-// forge/metrics.go
+// gofra/metrics.go
 var (
-    meter = otel.Meter("forge")
+    meter = otel.Meter("gofra")
 
-    PostsCreated, _ = meter.Int64Counter("forge.posts.created",
+    PostsCreated, _ = meter.Int64Counter("gofra.posts.created",
         metric.WithDescription("Total posts created"),
     )
 
-    DBQueryDuration, _ = meter.Float64Histogram("forge.db.query_duration",
+    DBQueryDuration, _ = meter.Float64Histogram("gofra.db.query_duration",
         metric.WithDescription("Database query duration in milliseconds"),
         metric.WithUnit("ms"),
     )
@@ -518,16 +518,16 @@ PostsCreated.Add(ctx, 1, metric.WithAttributes(
 ))
 ```
 
-**Reason for the `forge.` prefix**: OTEL metrics should be namespaced. The
+**Reason for the `gofra.` prefix**: OTEL metrics should be namespaced. The
 prefix makes it clear these are application metrics, not infrastructure
 metrics from otelconnect or the Restate Server.
 
 ---
 
-## Forge Configuration
+## Gofra Configuration
 
 ```yaml
-# forge.yaml
+# gofra.yaml
 observability:
   # OTLP collector endpoint
   endpoint: "${OTEL_EXPORTER_OTLP_ENDPOINT:-localhost:4317}"
@@ -554,7 +554,7 @@ docker run -d --name jaeger \
 ```
 
 In development, `mise run dev:collector` starts a local Jaeger instance. The
-Restate Server and the Forge app both export to `localhost:4317`. Traces are
+Restate Server and the Gofra app both export to `localhost:4317`. Traces are
 viewable at `http://localhost:16686`.
 
 ---
@@ -618,5 +618,5 @@ request to the background search indexing — is one connected trace.
 | 43 | Restate Server exports OTLP | Same collector as the app. Invocation traces correlate with Connect RPC traces via W3C TraceContext. |
 | 44 | AlwaysSample in dev, ratio-based in prod | See everything locally. Control volume and cost in production. |
 | 45 | W3C TraceContext propagator | Standard. Restate uses it. Connect uses it. No vendor-specific propagation format. |
-| 46 | `forge.` metric prefix | Namespace application metrics. Distinguish from otelconnect (`rpc.server.*`) and Restate (`restate_*`) metrics. |
+| 46 | `gofra.` metric prefix | Namespace application metrics. Distinguish from otelconnect (`rpc.server.*`) and Restate (`restate_*`) metrics. |
 | 47 | Jaeger in dev via mise task | One `mise run dev:collector` for local trace viewing. No mandatory infra — just a Docker container. |

@@ -13,7 +13,7 @@ of APIs.
 
 The AIPs are organized into categories: resource design, standard methods,
 fields, design patterns, compatibility, and polish. Not all are relevant to
-Forge — some are deeply Google-specific (resource names with `googleapis.com`
+Gofra — some are deeply Google-specific (resource names with `googleapis.com`
 prefixes, `google.api.http` transcoding annotations). But the core design
 principles are universal and well-suited to a Connect RPC framework.
 
@@ -27,7 +27,7 @@ principles are universal and well-suited to a Connect RPC framework.
 standard methods (verbs). Resources live in hierarchies. The schema of a
 resource is the same across all methods that return it.
 
-**Why it fits**: This is exactly how we want Forge APIs to look. A `Post` has
+**Why it fits**: This is exactly how we want Gofra APIs to look. A `Post` has
 the same shape whether returned from `GetPost`, `ListPosts`, or `CreatePost`.
 Connect RPC already encourages this — the proto message is the contract.
 
@@ -124,7 +124,7 @@ Field naming for timestamps: `{action}_time` (e.g., `create_time`, `update_time`
 | `uid` | `string` | System-assigned unique identifier |
 
 **Adaptation**: Google uses `name` as the primary resource identifier in the
-format `publishers/123/books/456`. For Forge, we use a simpler model:
+format `publishers/123/books/456`. For Gofra, we use a simpler model:
 - `int64 id` for database primary keys
 - `string uid` when a globally unique string identifier is needed
 - `string slug` for URL-friendly human-readable identifiers
@@ -170,7 +170,7 @@ message ListPostsResponse {
 based on Google's Common Expression Language (CEL). The full syntax is complex
 (supports logical operators, functions, traversals).
 
-For Forge, we adopt a simplified version:
+For Gofra, we adopt a simplified version:
 - Support basic field-value filters: `status = "published"`
 - Support logical AND: `status = "published" AND author_id = 42`
 - Support common operators: `=`, `!=`, `>`, `<`, `>=`, `<=`
@@ -400,7 +400,7 @@ infrastructure APIs, not web applications.
 
 Google's LRO pattern uses `google.longrunning.Operation` with polling. We use
 Restate Workflows instead, which are far more capable. Long-running operations
-in Forge are Restate invocations — the client can attach to them by invocation
+in Gofra are Restate invocations — the client can attach to them by invocation
 ID or idempotency key using Restate's ingress API. No need for a separate
 Operation resource.
 
@@ -546,7 +546,7 @@ of these patterns automatically.
 
 ---
 
-## Integration with Forge
+## Integration with Gofra
 
 ### Proto → Generated Code → Handler → Restate
 

@@ -16,7 +16,7 @@ can trace every dependency. This is how Go programs are written.
 
 **Protocols over frameworks.** The API contract is Protocol Buffers. The RPC
 layer is Connect RPC. The durable execution layer is the Restate SDK. The
-frontend data layer is generated from proto. Forge provides project structure
+frontend data layer is generated from proto. Gofra provides project structure
 and development tooling around these protocols — it does not wrap them in its
 own abstractions.
 
@@ -146,13 +146,13 @@ environment. It also replaces Makefiles for task running — tasks are defined i
 the same file, support dependency ordering, parallel execution, and incremental
 builds via source/output tracking.
 
-We use mise instead of a custom `forge` CLI for tasks because: mise already
+We use mise instead of a custom `gofra` CLI for tasks because: mise already
 exists and is well-maintained, task definitions are declarative TOML (not
 compiled Go), and developers can inspect and modify tasks without rebuilding
 the CLI.
 
-The `forge` CLI still exists for code generators (`forge generate service`,
-`forge generate workflow`) because those need to understand the project structure
+The `gofra` CLI still exists for code generators (`gofra generate service`,
+`gofra generate workflow`) because those need to understand the project structure
 and produce Go files with correct imports — something a shell task cannot do well.
 
 ---
@@ -161,7 +161,7 @@ and produce Go files with correct imports — something a shell task cannot do w
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│                     Forge Application                      │
+│                     Gofra Application                      │
 │                     (single Go binary)                     │
 │                                                            │
 │  ┌────────────────────────┐  ┌──────────────────────────┐  │
@@ -216,7 +216,7 @@ myapp/
 ├── mise.toml                    # Tool versions + task definitions
 ├── buf.yaml                     # buf module config (proto deps, lint rules)
 ├── buf.gen.yaml                 # buf code generation config
-├── forge.yaml                   # Runtime config
+├── gofra.yaml                   # Runtime config
 ├── sqlc.yaml                    # sqlc configuration
 ├── .env                         # Environment-specific secrets
 │
@@ -530,7 +530,7 @@ ensures compile-time verification.
 ```go
 type PostsService struct {
     Queries *sqlc.Queries
-    Restate *forge.RestateClient
+    Restate *gofra.RestateClient
 }
 
 var _ postsv1connect.PostsServiceHandler = (*PostsService)(nil)
@@ -590,18 +590,18 @@ the API mapping explicit.
 ```go
 func main() {
     cfg, _ := config.Load()
-    db, _ := forge.OpenDB(cfg.Database)
+    db, _ := gofra.OpenDB(cfg.Database)
     queries := sqlc.New(db)
-    restateClient := forge.NewRestateClient(cfg.Restate.IngressURL)
+    restateClient := gofra.NewRestateClient(cfg.Restate.IngressURL)
 
     mux := chi.NewRouter()
     mux.Use(middleware.Logger, middleware.Recovery, middleware.RequestID)
-    mux.Use(forge.CORSMiddleware(cfg.CORS))
+    mux.Use(gofra.CORSMiddleware(cfg.CORS))
 
     interceptors := connect.WithInterceptors(
-        forge.OTELInterceptor(),
+        gofra.OTELInterceptor(),
         protovalidate.NewInterceptor(),
-        forge.AuthInterceptor(cfg.Auth),
+        gofra.AuthInterceptor(cfg.Auth),
     )
 
     postsPath, postsHandler := postsv1connect.NewPostsServiceHandler(
@@ -612,9 +612,9 @@ func main() {
 
     // SPA: production embeds assets, dev proxies to Vite
     if cfg.App.IsProduction() {
-        mux.Handle("/*", forge.SPAHandler(web.Assets))
+        mux.Handle("/*", gofra.SPAHandler(web.Assets))
     } else {
-        mux.Handle("/*", forge.ViteProxy(cfg.Vite.URL))
+        mux.Handle("/*", gofra.ViteProxy(cfg.Vite.URL))
     }
 
     // Restate endpoint
@@ -624,7 +624,7 @@ func main() {
     restateEndpoint.Bind(restate.Reflect(workflows.OrderCheckout{Queries: queries}))
     restateEndpoint.Bind(restate.Reflect(workflows.PayoutApproval{Queries: queries}))
 
-    forge.Serve(ctx, forge.ServeConfig{
+    gofra.Serve(ctx, gofra.ServeConfig{
         HTTPHandler: mux,
         HTTPAddr:    fmt.Sprintf(":%d", cfg.App.Port),
         RestateAddr: fmt.Sprintf(":%d", cfg.Restate.ServicePort),
@@ -664,7 +664,7 @@ need the typed message. Using interceptors means the auth logic can inspect
 | Webhook callbacks | Awakeables / Durable Promises | Handler suspends, external system resolves the promise via HTTP. Handler resumes. |
 | Per-entity concurrency control | Virtual Object single-writer | Only one exclusive handler runs per object key at a time. No database locks. No race conditions. |
 
-### What Forge Still Provides
+### What Gofra Still Provides
 
 | Subsystem | Reason it stays |
 |---|---|
@@ -678,13 +678,13 @@ need the typed message. Using interceptors means the auth logic can inspect
 
 ### How Handlers Use Restate
 
-Restate handlers are written using the Restate Go SDK directly. Forge does not
+Restate handlers are written using the Restate Go SDK directly. Gofra does not
 wrap the SDK.
 
 ```go
 // app/services/mail_service.go
 type MailService struct {
-    DB     *forge.DB
+    DB     *gofra.DB
     Mailer *mailer.Client
 }
 
@@ -796,7 +796,7 @@ framework-owned query DSL to keep coherent.
 
 **Reason for explicit SQL**: complex joins, filters, and pagination rules are a
 normal part of application development. SQL is already the language Postgres
-executes. Forge should standardize on typed generated queries rather than hide
+executes. Gofra should standardize on typed generated queries rather than hide
 SQL behind a custom abstraction.
 
 ### Migrations
@@ -816,7 +816,7 @@ express. Starting with SQL avoids the cliff.
 Browser → Go server (:3000)
               │
               ├── Connect RPC handlers
-              ├── /_forge/config.js
+              ├── /_gofra/config.js
               └── Proxies frontend pages/assets/HMR → Vite dev server (:5173)
 ```
 
@@ -831,7 +831,7 @@ hot module replacement.
 Browser → Go server (:3000)
               │
               ├── Connect RPC handlers
-              ├── /_forge/config.js
+              ├── /_gofra/config.js
               └── Embedded SPA assets (go:embed web/dist)
 ```
 
@@ -842,7 +842,7 @@ files directly from the binary with proper content types and caching headers.
 ### Browser Runtime Config
 
 The browser gets deploy-time settings from Go, not from baked frontend env
-variables. Go serves a browser-safe payload at `/_forge/config.js`, and
+variables. Go serves a browser-safe payload at `/_gofra/config.js`, and
 `web/index.html` loads it before the frontend bundle.
 
 The payload is defined by a dedicated runtime-config proto and resolved from
@@ -919,7 +919,7 @@ run = "restate-server & sleep 2 && restate deployments register http://localhost
 
 [tasks.build]
 depends = ["gen", "build:web"]
-run = "go build -o forge-app ./cmd/app"
+run = "go build -o gofra-app ./cmd/app"
 
 [tasks."build:web"]
 run = "cd web && npm run build"
@@ -941,22 +941,22 @@ management. mise combines tool pinning (`go = "1.23"`) with task running
 (`sources`/`outputs`), parallel task execution, and file-watching
 (`mise watch`).
 
-**Reason for mise over a custom forge CLI for tasks**: The `forge` binary would
+**Reason for mise over a custom gofra CLI for tasks**: The `gofra` binary would
 need to be compiled before running any task. mise is a standalone tool that
 reads a TOML file. Developers can inspect and modify tasks without touching Go
 code.
 
-### forge CLI (code generation only)
+### gofra CLI (code generation only)
 
 ```bash
-forge generate service ProcessPodcast     # → app/services/process_podcast.go
-forge generate object ShoppingCart        # → app/objects/shopping_cart.go
-forge generate workflow OrderCheckout     # → app/workflows/order_checkout.go
-forge generate proto posts               # → proto/myapp/posts/v1/posts.proto (scaffold)
-forge generate migration create_posts    # → db/migrations/..._create_posts.{up,down}.sql
+gofra generate service ProcessPodcast     # → app/services/process_podcast.go
+gofra generate object ShoppingCart        # → app/objects/shopping_cart.go
+gofra generate workflow OrderCheckout     # → app/workflows/order_checkout.go
+gofra generate proto posts               # → proto/myapp/posts/v1/posts.proto (scaffold)
+gofra generate migration create_posts    # → db/migrations/..._create_posts.{up,down}.sql
 ```
 
-**Reason for keeping forge CLI for generators**: Generators produce Go files
+**Reason for keeping gofra CLI for generators**: Generators produce Go files
 with correct imports, struct fields, and interface implementations. They
 understand the project structure (where to put files, how to name packages).
 This requires Go code, not shell scripts.
@@ -969,10 +969,10 @@ This requires Go code, not shell scripts.
 
 ```go
 func TestListPosts(t *testing.T) {
-    db := forge.TestDB(t)
+    db := gofra.TestDB(t)
     factory.CreateMany[models.Post](db, 5)
 
-    recorder := forge.NewRestateRecorder()
+    recorder := gofra.NewRestateRecorder()
     svc := &rpc.PostsService{Queries: sqlc.New(db), Restate: recorder}
 
     _, handler := postsv1connect.NewPostsServiceHandler(svc)
@@ -1002,7 +1002,7 @@ recorder captures `ServiceSend` / `ObjectSend` calls for assertions.
 
 ```go
 func TestMailService(t *testing.T) {
-    db := forge.TestDB(t)
+    db := gofra.TestDB(t)
     svc := services.MailService{Queries: sqlc.New(db), Mailer: mailertest.New()}
 
     env := restatetest.Start(t, restate.Reflect(svc))
@@ -1045,13 +1045,13 @@ tests for the durable execution behavior.
 
 ```bash
 mise run build
-# Produces: forge-app (single binary, ~30MB)
+# Produces: gofra-app (single binary, ~30MB)
 # Contains: Connect RPC server, Restate endpoint, embedded SPA assets
 ```
 
 ### Runtime Requirements
 
-- The forge-app binary
+- The gofra-app binary
 - Restate Server binary (or HA cluster)
 - PostgreSQL
 
@@ -1110,7 +1110,7 @@ will retry them on the next available instance. No data is lost.
 | 24 | SPA (no SSR) | Decouples frontend and backend. Contract is the proto file. |
 | 25 | `embed.FS` for production | Single binary deployment. No separate file server. |
 | 26 | mise for tools + tasks | Pins tool versions. Replaces Makefile. Incremental builds. |
-| 27 | forge CLI for generators only | Generators need Go code. Tasks are declarative TOML. |
+| 27 | gofra CLI for generators only | Generators need Go code. Tasks are declarative TOML. |
 | 28 | Events as map + loop | ~15 lines. Each listener is independently durable via Restate. |
 | 29 | No server-side rendering or templates | API-first. Frontend is replaceable. |
 | 30 | `RestateRecorder` for tests | Fast HTTP tests without Docker. Verify dispatch, not execution. |

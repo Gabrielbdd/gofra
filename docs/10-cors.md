@@ -10,7 +10,7 @@
 
 ## The Problem
 
-Forge's standard development topology serves the browser from the Go server
+Gofra's standard development topology serves the browser from the Go server
 (`:3000`) and proxies frontend pages and assets to Vite (`:5173`) behind that
 same origin. In that default setup, browser API calls are same-origin and do
 not need CORS.
@@ -18,8 +18,8 @@ not need CORS.
 CORS matters when the frontend is served from a different origin than the API:
 
 - a separately hosted SPA
-- a second local frontend origin outside Forge's default dev proxy
-- a third-party browser client talking to the Forge API directly
+- a second local frontend origin outside Gofra's default dev proxy
+- a third-party browser client talking to the Gofra API directly
 
 Connect RPC has specific CORS requirements beyond typical REST APIs:
 
@@ -43,7 +43,7 @@ Connect RPC has specific CORS requirements beyond typical REST APIs:
 5. **Auth bearer tokens.** The SPA sends `Authorization: Bearer <JWT>`. This
    header makes cross-origin RPCs preflight, and the server must explicitly
    allow the `Authorization` header. This is different from cookie-based
-   browser auth: Forge's default bearer-token flow does not require
+   browser auth: Gofra's default bearer-token flow does not require
    `AllowCredentials`.
 
 ---
@@ -56,8 +56,8 @@ pair with any standard CORS library — we use `rs/cors`, the most widely used
 Go CORS middleware.
 
 ```go
-// forge/cors.go
-package forge
+// gofra/cors.go
+package gofra
 
 import (
     "net/http"
@@ -116,15 +116,15 @@ If the application sets custom response headers or trailers, those must be
 added here too (trailers with the `Trailer-` prefix).
 
 **Reason for `connectrpc.com/cors`**: Connect's protocol headers evolve with
-the protocol. Hardcoding them in the application means updating Forge when
+the protocol. Hardcoding them in the application means updating Gofra when
 Connect adds a new header. The official package tracks the protocol — when
-Connect changes, the package updates, and Forge picks it up via `go get`.
+Connect changes, the package updates, and Gofra picks it up via `go get`.
 
 **Reason for `rs/cors`**: It's the most used Go CORS library (3600+
 importers), handles all CORS edge cases (wildcards, credentials, preflight
 caching), and is a standard `net/http` middleware that wraps any `http.Handler`.
 
-**Reason for `AllowCredentials: false`**: Forge's default browser auth flow
+**Reason for `AllowCredentials: false`**: Gofra's default browser auth flow
 uses bearer tokens, not cookies. The browser still preflights because of the
 `Authorization` header, but that does not require CORS credential mode.
 Leaving credentials disabled keeps the CORS contract aligned with the chosen
@@ -140,7 +140,7 @@ has no effect.
 ## Configuration
 
 ```yaml
-# forge.yaml
+# gofra.yaml
 cors:
   allowed_origins:
     - "https://app.myapp.com"
@@ -149,15 +149,15 @@ cors:
 
 ```yaml
 # Production (via env var)
-# FORGE_CORS_ALLOWED_ORIGINS=https://myapp.com,https://www.myapp.com
+# GOFRA_CORS_ALLOWED_ORIGINS=https://myapp.com,https://www.myapp.com
 ```
 
 **Reason for not defaulting to `*`**: bearer-token requests can technically
-use wildcard origins when cookies are not involved, but Forge still keeps an
+use wildcard origins when cookies are not involved, but Gofra still keeps an
 explicit origin allowlist. Authenticated browser APIs are easier to reason
 about when the intended frontend origins are named directly.
 
-**Reason Forge does not auto-add `http://localhost:5173`**: standard Forge
+**Reason Gofra does not auto-add `http://localhost:5173`**: standard Gofra
 development puts Go in front of Vite, so the browser does not talk to `:5173`
 directly. If a project intentionally exposes a separate frontend origin, that
 origin should be listed explicitly.
@@ -183,7 +183,7 @@ func main() {
     mux := chi.NewRouter()
 
     // CORS must be first — preflight OPTIONS must be handled before routing
-    mux.Use(forge.CORSMiddleware(cfg.CORS))
+    mux.Use(gofra.CORSMiddleware(cfg.CORS))
 
     // ... remaining middleware and handlers
 }
@@ -206,7 +206,7 @@ browser makes same-origin requests.
 ```
 Development:
   Browser at http://localhost:3000 → Go :3000 → Vite :5173 behind proxy
-  → CORS not required in the default Forge topology
+  → CORS not required in the default Gofra topology
 
 Production:
   SPA at https://myapp.com → API at https://myapp.com
@@ -268,8 +268,8 @@ it's called."
 | 80 | `connectrpc.com/cors` for header lists | Official package, tracks protocol changes. Don't hardcode protocol headers. |
 | 81 | `rs/cors` for CORS middleware | Most widely used, handles all edge cases, standard `net/http` middleware. |
 | 82 | `AllowCredentials: false` for the default bearer-token SPA flow | Browser auth uses `Authorization` headers, not cookies. Preflight still happens, but credential mode is not required. |
-| 83 | Explicit origins even without cookie auth | Bearer-token CORS can technically use `*`, but Forge keeps an explicit allowlist for a clearer browser contract. |
-| 84 | Explicit allowed origins in config | Standard Forge dev is same-origin through Go. Separate browser origins must be listed explicitly. |
+| 83 | Explicit origins even without cookie auth | Bearer-token CORS can technically use `*`, but Gofra keeps an explicit allowlist for a clearer browser contract. |
+| 84 | Explicit allowed origins in config | Standard Gofra dev is same-origin through Go. Separate browser origins must be listed explicitly. |
 | 85 | CORS middleware first in chain | Preflight OPTIONS must be handled before routing, auth, or any other middleware. |
 | 86 | `MaxAge: 7200` | Reduces preflight requests. Chrome's maximum. |
 | 87 | `idempotency_level = NO_SIDE_EFFECTS` for reads | Enables Connect GET. Avoids CORS preflight for read RPCs. Fewer round-trips. |

@@ -11,7 +11,7 @@
 ## Cloud-Native Health Check Model
 
 Kubernetes defines three types of probes, each answering a different question.
-Forge implements all three as plain HTTP endpoints on the chi mux — not
+Gofra implements all three as plain HTTP endpoints on the chi mux — not
 Connect RPC methods — because probes are infrastructure concerns consumed by
 orchestrators, not API clients.
 
@@ -51,14 +51,14 @@ and is ready for liveness/readiness probes to begin.
 **Behavior**: Returns `200 OK` once all startup conditions are met. Before
 that, returns `503 Service Unavailable`.
 
-**Why this matters**: Forge runs migrations on startup (when `auto_migrate`
+**Why this matters**: Gofra runs migrations on startup (when `auto_migrate`
 is true) and registers with the Restate Server. These take time. Without a
 startup probe, Kubernetes would run the liveness probe during initialization,
 see failures, and restart the container in a loop. The startup probe gives
 the app time to finish initializing.
 
 ```go
-// forge/health.go
+// gofra/health.go
 
 type HealthChecker struct {
     db             *sql.DB
@@ -195,7 +195,7 @@ than to accept requests and fail them all.
 func main() {
     // ... setup ...
 
-    health := &forge.HealthChecker{
+    health := &gofra.HealthChecker{
         db:               db,
         restateIngressURL: cfg.Restate.IngressURL,
         startupDone:      &atomic.Bool{},
@@ -210,13 +210,13 @@ func main() {
     mux.Get("/healthz/ready", health.ReadinessHandler())
 
     // CORS, auth, Connect handlers...
-    mux.Use(forge.CORSMiddleware(cfg.CORS))
+    mux.Use(gofra.CORSMiddleware(cfg.CORS))
     // ...
 
     // After all initialization is complete
     health.startupDone.Store(true)
 
-    forge.Serve(ctx, mux, ":3000", restateEndpoint, ":9080")
+    gofra.Serve(ctx, mux, ":3000", restateEndpoint, ":9080")
 }
 ```
 
@@ -233,7 +233,7 @@ HTTP GET requests that must return immediately.
 # k8s/deployment.yaml (relevant section)
 spec:
   containers:
-    - name: forge-app
+    - name: gofra-app
       image: myapp:latest
       ports:
         - containerPort: 3000
@@ -265,7 +265,7 @@ spec:
         timeoutSeconds: 3
 ```
 
-**Reason for `failureThreshold: 24` on startup**: Forge may run migrations
+**Reason for `failureThreshold: 24` on startup**: Gofra may run migrations
 on startup, which can take significant time for large schemas. 24 × 5s = 120
 seconds gives enough headroom. If the app hasn't started after 2 minutes,
 something is genuinely wrong.

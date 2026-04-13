@@ -10,10 +10,10 @@
 
 ## The Problem
 
-A Forge application needs configuration from three sources with clear
+A Gofra application needs configuration from three sources with clear
 precedence:
 
-1. **YAML file** (`forge.yaml`) — project defaults, checked into version
+1. **YAML file** (`gofra.yaml`) — project defaults, checked into version
    control. Defines the shape of the config and documents every option.
 2. **Environment variables** — deployment-specific overrides. Secrets, DSNs,
    API keys. Set by the platform (Docker, Kubernetes, systemd).
@@ -156,7 +156,7 @@ from the struct, every caller that referenced it fails to compile. Scattered
 ### YAML File
 
 ```yaml
-# forge.yaml — project defaults (checked into version control)
+# gofra.yaml — project defaults (checked into version control)
 
 app:
   name: myapp
@@ -213,7 +213,7 @@ web ecosystem are already familiar with YAML from Docker Compose, Kubernetes,
 and GitHub Actions. TOML is fine too — koanf supports both — but YAML is the
 default.
 
-**Reason forge.yaml is checked into version control**: It contains project
+**Reason gofra.yaml is checked into version control**: It contains project
 defaults, not secrets. `database.dsn` points to `localhost` for development.
 Production overrides come from environment variables.
 
@@ -223,27 +223,27 @@ Env vars override YAML values. The mapping convention:
 
 ```
 YAML path             → env var
-app.name              → FORGE_APP_NAME
-app.port              → FORGE_APP_PORT
-database.dsn          → FORGE_DATABASE_DSN
-database.auto_migrate → FORGE_DATABASE_AUTO_MIGRATE
-restate.ingress_url   → FORGE_RESTATE_INGRESS_URL
-auth.issuer           → FORGE_AUTH_ISSUER
-auth.client_id        → FORGE_AUTH_CLIENT_ID
-auth.redirect_path    → FORGE_AUTH_REDIRECT_PATH
-observability.endpoint→ FORGE_OBSERVABILITY_ENDPOINT
-mail.smtp_pass        → FORGE_MAIL_SMTP_PASS
+app.name              → GOFRA_APP_NAME
+app.port              → GOFRA_APP_PORT
+database.dsn          → GOFRA_DATABASE_DSN
+database.auto_migrate → GOFRA_DATABASE_AUTO_MIGRATE
+restate.ingress_url   → GOFRA_RESTATE_INGRESS_URL
+auth.issuer           → GOFRA_AUTH_ISSUER
+auth.client_id        → GOFRA_AUTH_CLIENT_ID
+auth.redirect_path    → GOFRA_AUTH_REDIRECT_PATH
+observability.endpoint→ GOFRA_OBSERVABILITY_ENDPOINT
+mail.smtp_pass        → GOFRA_MAIL_SMTP_PASS
 ```
 
-The transform: uppercase, replace `.` with `_`, prefix with `FORGE_`.
+The transform: uppercase, replace `.` with `_`, prefix with `GOFRA_`.
 
-**Reason for the `FORGE_` prefix**: Prevents collisions with other env vars.
-`PORT` is commonly set by platforms (Heroku, Cloud Run). `FORGE_APP_PORT`
+**Reason for the `GOFRA_` prefix**: Prevents collisions with other env vars.
+`PORT` is commonly set by platforms (Heroku, Cloud Run). `GOFRA_APP_PORT`
 is unambiguous.
 
 **Reason env vars override YAML**: The YAML file has development defaults.
-In production, the platform sets `FORGE_DATABASE_DSN` to the real connection
-string. The developer doesn't need a separate `forge.production.yaml` — env
+In production, the platform sets `GOFRA_DATABASE_DSN` to the real connection
+string. The developer doesn't need a separate `gofra.production.yaml` — env
 vars handle environment-specific config.
 
 ### CLI Flags
@@ -263,7 +263,7 @@ Flags override everything, for one-off development use:
 
 **Reason flags use the same dotted key paths as YAML**: No separate flag
 naming convention to learn. `--app.port=4000` maps to `app.port` in the YAML,
-which maps to `FORGE_APP_PORT` in env. One key path, three sources.
+which maps to `GOFRA_APP_PORT` in env. One key path, three sources.
 
 **Reason flags are not the primary config mechanism**: Flags are awkward for
 12+ config values. They're useful for quick overrides during development
@@ -322,8 +322,8 @@ func Load() (*Config, error) {
     }, "."), nil)
 
     // Layer 2: YAML file
-    configPath := "forge.yaml"
-    if p := os.Getenv("FORGE_CONFIG"); p != "" {
+    configPath := "gofra.yaml"
+    if p := os.Getenv("GOFRA_CONFIG"); p != "" {
         configPath = p
     }
     if _, err := os.Stat(configPath); err == nil {
@@ -333,16 +333,16 @@ func Load() (*Config, error) {
     }
 
     // Layer 3: Environment variables
-    // FORGE_APP_PORT → app.port
-    k.Load(env.Provider("FORGE_", ".", func(s string) string {
+    // GOFRA_APP_PORT → app.port
+    k.Load(env.Provider("GOFRA_", ".", func(s string) string {
         return strings.Replace(
-            strings.ToLower(strings.TrimPrefix(s, "FORGE_")),
+            strings.ToLower(strings.TrimPrefix(s, "GOFRA_")),
             "_", ".", -1,
         )
     }), nil)
 
     // Layer 4: CLI flags (highest precedence)
-    f := flag.NewFlagSet("forge", flag.ContinueOnError)
+    f := flag.NewFlagSet("gofra", flag.ContinueOnError)
     f.Int("app.port", 0, "HTTP server port")
     f.String("app.env", "", "Environment (development, staging, production)")
     f.String("database.dsn", "", "Database connection string")
@@ -371,7 +371,7 @@ Env vars override YAML with deployment-specific values. Flags override
 everything for ad-hoc debugging. This is the standard precedence in the
 12-factor app methodology.
 
-**Reason for `FORGE_CONFIG` env var**: Allows overriding the config file path
+**Reason for `GOFRA_CONFIG` env var**: Allows overriding the config file path
 for testing or alternative configurations without changing code.
 
 **Reason posflag loads only explicitly-set flags**: Without this, the default
@@ -393,7 +393,7 @@ func main() {
         os.Exit(1)
     }
 
-    db, err := forge.OpenDB(cfg.Database)
+    db, err := gofra.OpenDB(cfg.Database)
     // cfg.Database is a typed DatabaseConfig — not a string lookup
 
     if cfg.Database.AutoMigrate {
@@ -411,9 +411,9 @@ and every other dependency.
 
 ## Public Runtime Config For The Browser
 
-The browser must not read raw environment variables directly. Forge derives a
+The browser must not read raw environment variables directly. Gofra derives a
 public runtime config message from the server config and exposes it at
-`GET /_forge/config.js`.
+`GET /_gofra/config.js`.
 
 The public browser contract is not the same type as `config.Config`. It lives
 in its own proto so the browser-safe allowlist is explicit:
@@ -434,7 +434,7 @@ message AuthConfig {
 }
 ```
 
-Forge generates a resolver that binds this proto to `config.Config` by
+Gofra generates a resolver that binds this proto to `config.Config` by
 convention:
 
 - proto `snake_case` fields map to Go struct fields
@@ -449,11 +449,11 @@ Generated and handwritten responsibilities are split cleanly:
 - `config/public_config_gen.go` is generated and contains the typed binder from
   `config.Config` to `runtimev1.RuntimeConfig`
 - `runtimeconfig/` contains the reusable resolver and HTTP handler behavior
-- `cmd/forge-gen-runtimeconfig/main.go` is the codegen entrypoint
+- `cmd/gofra-gen-runtimeconfig/main.go` is the codegen entrypoint
 
 ```go
 resolver := runtimeconfig.NewResolver(appCfg)
-mux.Handle("/_forge/config.js", runtimeconfig.Handler(resolver))
+mux.Handle("/_gofra/config.js", runtimeconfig.Handler(resolver))
 ```
 
 This generated code uses typed Go field access, not runtime reflection. If a
@@ -503,7 +503,7 @@ func RuntimeConfigJS(msg proto.Message) http.HandlerFunc {
         payload, _ := protojson.Marshal(msg)
         w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
         w.Header().Set("Cache-Control", "no-store")
-        fmt.Fprintf(w, "window.__FORGE_CONFIG__ = %s;\n", payload)
+        fmt.Fprintf(w, "window.__GOFRA_CONFIG__ = %s;\n", payload)
     }
 }
 ```
@@ -520,11 +520,11 @@ changing the public config contract should not require parallel manual edits in
 Go and TypeScript. The generated binder keeps the common case mechanical and
 type-checked.
 
-**Reason for `/_forge/config.js` instead of build-time `VITE_*` variables**:
+**Reason for `/_gofra/config.js` instead of build-time `VITE_*` variables**:
 the same frontend bundle can run in different environments without a rebuild.
 The deployment changes server config, not compiled frontend assets.
 
-**Reason for JavaScript instead of HTML templating**: Forge keeps the HTML shell
+**Reason for JavaScript instead of HTML templating**: Gofra keeps the HTML shell
 static in both dev and prod. The public runtime config path stays the same
 whether the browser is loading Vite-served assets or embedded production files.
 
@@ -565,16 +565,16 @@ tags with a validation library.
 
 ## Environment-Specific Config
 
-No multiple YAML files (`forge.dev.yaml`, `forge.prod.yaml`). The pattern is:
+No multiple YAML files (`gofra.dev.yaml`, `gofra.prod.yaml`). The pattern is:
 
-- `forge.yaml` contains development defaults (checked in)
-- Production sets env vars: `FORGE_DATABASE_DSN`, `FORGE_APP_ENV=production`,
-  `FORGE_OBSERVABILITY_TRACE_SAMPLE_RATE=0.1`, etc.
+- `gofra.yaml` contains development defaults (checked in)
+- Production sets env vars: `GOFRA_DATABASE_DSN`, `GOFRA_APP_ENV=production`,
+  `GOFRA_OBSERVABILITY_TRACE_SAMPLE_RATE=0.1`, etc.
 - Staging is the same as production with different env var values
 
 **Reason for no per-environment YAML files**: Per-environment files proliferate
-and drift. A developer adds a field to `forge.yaml` but forgets
-`forge.production.yaml`. Env vars are the standard for deployment-specific
+and drift. A developer adds a field to `gofra.yaml` but forgets
+`gofra.production.yaml`. Env vars are the standard for deployment-specific
 config in containerized environments. The YAML file is for project structure,
 not deployment configuration.
 
@@ -583,32 +583,32 @@ not deployment configuration.
 ## Sensitive Values
 
 Secrets (database passwords, SMTP credentials, API keys) must come from env
-vars, never from `forge.yaml`:
+vars, never from `gofra.yaml`:
 
 ```yaml
-# forge.yaml — NO secrets here
+# gofra.yaml — NO secrets here
 auth:
   issuer: "https://auth.myapp.com"
   client_id: "myapp-browser" # public OIDC client ID, safe to check in
   service_account:
-    key_path: "" # set via FORGE_AUTH_SERVICE_ACCOUNT_KEY_PATH
+    key_path: "" # set via GOFRA_AUTH_SERVICE_ACCOUNT_KEY_PATH
 
 mail:
   driver: smtp
   smtp_host: smtp.example.com
   smtp_port: 587
-  smtp_user: ""    # set via FORGE_MAIL_SMTP_USER
-  smtp_pass: ""    # set via FORGE_MAIL_SMTP_PASS
+  smtp_user: ""    # set via GOFRA_MAIL_SMTP_USER
+  smtp_pass: ""    # set via GOFRA_MAIL_SMTP_PASS
 ```
 
 ```bash
 # Production env
-export FORGE_MAIL_SMTP_USER="noreply@myapp.com"
-export FORGE_MAIL_SMTP_PASS="s3cret"
-export FORGE_DATABASE_DSN="postgres://user:pass@db.internal/myapp"
+export GOFRA_MAIL_SMTP_USER="noreply@myapp.com"
+export GOFRA_MAIL_SMTP_PASS="s3cret"
+export GOFRA_DATABASE_DSN="postgres://user:pass@db.internal/myapp"
 ```
 
-**Reason**: `forge.yaml` is in version control. Secrets in version control
+**Reason**: `gofra.yaml` is in version control. Secrets in version control
 is a security incident. Env vars are the standard mechanism for secrets in
 Docker, Kubernetes, and every PaaS.
 
@@ -621,10 +621,10 @@ Docker, Kubernetes, and every PaaS.
 | 58 | koanf over viper | No forced lowercasing. Modular deps (only import what you use). Correct merge semantics. Active maintenance. |
 | 59 | YAML over TOML | Supports comments (unlike JSON). Familiar from Docker/K8s ecosystem. More readable for nested config. |
 | 60 | Four-layer precedence: defaults → YAML → env → flags | 12-factor app standard. YAML for project defaults. Env for deployment. Flags for debugging. |
-| 61 | `FORGE_` prefix for env vars | Prevents collisions with platform env vars like `PORT`, `DATABASE_URL`. |
-| 62 | Single `forge.yaml` (no per-environment files) | Per-environment files drift. Env vars are the standard for deployment-specific config. |
+| 61 | `GOFRA_` prefix for env vars | Prevents collisions with platform env vars like `PORT`, `DATABASE_URL`. |
+| 62 | Single `gofra.yaml` (no per-environment files) | Per-environment files drift. Env vars are the standard for deployment-specific config. |
 | 63 | Typed struct, not `k.String()` calls | Compile-time type checking. Single place to see all config options. Refactor-safe. |
 | 64 | No global config singleton | Config is a value passed in `main()`. Follows the same DI pattern as every other dependency. |
 | 65 | Manual validation over struct tags | Startup-time concern. Simple rules. 10-line function is clearer than a validation framework. |
 | 66 | Secrets only via env vars | YAML is in version control. Secrets in VCS is a security incident. |
-| 132 | Generated public runtime config for the browser | Browser gets an explicit proto-defined safe subset at `/_forge/config.js`, not raw env vars or secrets. |
+| 132 | Generated public runtime config for the browser | Browser gets an explicit proto-defined safe subset at `/_gofra/config.js`, not raw env vars or secrets. |

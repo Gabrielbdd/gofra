@@ -1,8 +1,8 @@
-# Forge Framework — Architecture Documentation
+# Gofra Framework — Architecture Documentation
 
-## What Is Forge
+## What Is Gofra
 
-Forge is an opinionated, batteries-included Go framework for general web
+Gofra is an opinionated, batteries-included Go framework for general web
 applications. It borrows the productivity goal of Phoenix, Laravel, and Rails,
 but positions itself as an API-first system: Connect RPC for typed APIs,
 Restate for durable execution, PostgreSQL for domain data, Zitadel for
@@ -11,7 +11,7 @@ binary plus required infrastructure.
 
 ## How to Read This Documentation
 
-This documentation is the complete engineering design for Forge. It records
+This documentation is the complete engineering design for Gofra. It records
 every architectural decision with its rationale. It is structured for both
 human engineers reading sequentially and AI agents searching for specific topics.
 The final document, [V1 Readiness Checklist](18-readiness-checklist.md),
@@ -33,9 +33,9 @@ must be softened or deferred until the framework actually solves them.
 | 09 | [Error Handling](09-errors.md) | Connect error codes, helper functions, Restate terminal vs retryable, frontend parsing, panic recovery. |
 | 10 | [CORS](10-cors.md) | connectrpc.com/cors + rs/cors, credential handling, Connect GET requests. |
 | 11 | [Health Checks](11-health-checks.md) | Three-probe model (startup/liveness/readiness), Kubernetes alignment, non-K8s platforms. |
-| 12 | [Graceful Shutdown](12-graceful-shutdown.md) | Four-phase shutdown, readiness drain, forge.Serve(), Kubernetes budget alignment. |
+| 12 | [Graceful Shutdown](12-graceful-shutdown.md) | Four-phase shutdown, readiness drain, gofra.Serve(), Kubernetes budget alignment. |
 | 13 | [Frontend — React SPA](13-frontend.md) | Vite, TanStack Router/Query, Connect-Query, shadcn, dev proxy, production embed. |
-| 14 | [Tooling — mise & forge CLI](14-tooling.md) | mise.toml, task definitions, forge generators, developer workflow. |
+| 14 | [Tooling — mise & gofra CLI](14-tooling.md) | mise.toml, task definitions, gofra generators, developer workflow. |
 | 15 | [Development Environment — Docker Compose](15-docker-compose.md) | Postgres, Restate, Zitadel, Jaeger setup, port map, network topology. |
 | 16 | [Testing](16-testing.md) | Connect handler tests, Restate integration tests, RestateRecorder, factories. |
 | 17 | [Decision Log](17-decision-log.md) | All 123 numbered decisions with rationale, organized by subsystem. |
@@ -51,7 +51,7 @@ Auth:         Zitadel (OIDC, users, orgs) + JWT validation + RBAC permissions in
 Frontend:     React + Vite + TanStack Router + TanStack Query + shadcn + Tailwind 4
 Observability: slog + OpenTelemetry + otelconnect + Jaeger
 Config:       koanf (YAML + env + flags)
-Tooling:      mise (tool versions + tasks) + forge CLI (generators)
+Tooling:      mise (tool versions + tasks) + gofra CLI (generators)
 Deployment:   Single Go binary (embedded SPA) + Restate Server + PostgreSQL
 ```
 

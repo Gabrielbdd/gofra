@@ -48,10 +48,10 @@ public:
   app_name: from-yaml
 `)
 	t.Setenv("GOFRA_CONFIG", configPath)
-	t.Setenv("GOFRA_APP_PORT", "4200")
-	t.Setenv("GOFRA_PUBLIC_APP_NAME", "from-env")
+	t.Setenv("GOFRA_APP__PORT", "4200")
+	t.Setenv("GOFRA_PUBLIC__APP_NAME", "from-env")
 
-	cfg, err := Load([]string{"-app.port=4300", "-public.app_name=from-flag"})
+	cfg, err := Load([]string{"--app.port=4300", "--public.app_name=from-flag"})
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}

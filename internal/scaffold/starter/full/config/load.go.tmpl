@@ -1,160 +1,25 @@
 package config
 
 import (
-	"errors"
-	"flag"
-	"fmt"
-	"io"
-	"os"
-	"strconv"
-	"strings"
+	runtimeconfig "__GOFRA_FRAMEWORK_MODULE__/runtime/config"
 
-	"gopkg.in/yaml.v3"
+	flag "github.com/spf13/pflag"
 )
 
-const defaultConfigPath = "gofra.yaml"
-
+// Load reads the application configuration using the framework's four-layer
+// precedence: struct defaults, YAML file (gofra.yaml), environment variables,
+// and CLI flags. Environment variables use GOFRA_ prefix with double-underscore
+// for nesting (e.g. GOFRA_APP__PORT, GOFRA_PUBLIC__APP_NAME).
 func Load(args []string) (*Config, error) {
-	cfg := Default()
-	if cfg == nil {
-		return nil, fmt.Errorf("config: default config is nil")
-	}
-
-	configPath := os.Getenv("GOFRA_CONFIG")
-	if configPath == "" {
-		configPath = defaultConfigPath
-	}
-
-	if err := applyYAML(cfg, configPath); err != nil {
-		return nil, err
-	}
-	if err := applyEnv(cfg); err != nil {
-		return nil, err
-	}
-	if err := applyFlags(cfg, args); err != nil {
-		return nil, err
-	}
-
-	return cfg, nil
-}
-
-func applyYAML(cfg *Config, path string) error {
-	content, err := os.ReadFile(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-		return fmt.Errorf("config: read %s: %w", path, err)
-	}
-
-	if err := yaml.Unmarshal(content, cfg); err != nil {
-		return fmt.Errorf("config: parse %s: %w", path, err)
-	}
-
-	return nil
-}
-
-func applyEnv(cfg *Config) error {
-	overrideStringFromEnv("GOFRA_APP_NAME", &cfg.App.Name)
-	if err := overrideIntFromEnv("GOFRA_APP_PORT", &cfg.App.Port); err != nil {
-		return err
-	}
-
-	overrideStringFromEnv("GOFRA_PUBLIC_APP_NAME", &cfg.Public.AppName)
-	overrideStringFromEnv("GOFRA_PUBLIC_API_BASE_URL", &cfg.Public.APIBaseURL)
-	overrideStringFromEnv("GOFRA_PUBLIC_AUTH_ISSUER", &cfg.Public.Auth.Issuer)
-	overrideStringFromEnv("GOFRA_PUBLIC_AUTH_CLIENT_ID", &cfg.Public.Auth.ClientID)
-	overrideStringSliceFromEnv("GOFRA_PUBLIC_AUTH_SCOPES", &cfg.Public.Auth.Scopes)
-	overrideStringFromEnv("GOFRA_PUBLIC_AUTH_REDIRECT_PATH", &cfg.Public.Auth.RedirectPath)
-	overrideStringFromEnv("GOFRA_PUBLIC_AUTH_POST_LOGOUT_REDIRECT_PATH", &cfg.Public.Auth.PostLogoutRedirectPath)
-
-	return nil
-}
-
-func applyFlags(cfg *Config, args []string) error {
 	flags := flag.NewFlagSet("gofra", flag.ContinueOnError)
-	flags.SetOutput(io.Discard)
+	flags.Int("app.port", 0, "HTTP server port")
+	flags.String("app.name", "", "application name")
+	flags.String("public.app_name", "", "public runtime app name")
+	flags.String("public.api_base_url", "", "public runtime API base URL")
+	flags.String("public.auth.issuer", "", "OIDC issuer URL")
+	flags.String("public.auth.client_id", "", "OIDC browser client ID")
+	flags.String("public.auth.redirect_path", "", "auth redirect path")
+	flags.String("public.auth.post_logout_redirect_path", "", "post-logout redirect path")
 
-	appName := cfg.App.Name
-	appPort := cfg.App.Port
-	publicAppName := cfg.Public.AppName
-	publicAPIBaseURL := cfg.Public.APIBaseURL
-	publicAuthIssuer := cfg.Public.Auth.Issuer
-	publicAuthClientID := cfg.Public.Auth.ClientID
-	publicAuthScopes := strings.Join(cfg.Public.Auth.Scopes, ",")
-	publicAuthRedirectPath := cfg.Public.Auth.RedirectPath
-	publicAuthPostLogoutRedirectPath := cfg.Public.Auth.PostLogoutRedirectPath
-
-	flags.StringVar(&appName, "app.name", appName, "application name")
-	flags.IntVar(&appPort, "app.port", appPort, "HTTP port")
-	flags.StringVar(&publicAppName, "public.app_name", publicAppName, "public runtime app name")
-	flags.StringVar(&publicAPIBaseURL, "public.api_base_url", publicAPIBaseURL, "public runtime API base URL")
-	flags.StringVar(&publicAuthIssuer, "public.auth.issuer", publicAuthIssuer, "public auth issuer")
-	flags.StringVar(&publicAuthClientID, "public.auth.client_id", publicAuthClientID, "public auth client ID")
-	flags.StringVar(&publicAuthScopes, "public.auth.scopes", publicAuthScopes, "public auth scopes as comma-separated values")
-	flags.StringVar(&publicAuthRedirectPath, "public.auth.redirect_path", publicAuthRedirectPath, "public auth redirect path")
-	flags.StringVar(
-		&publicAuthPostLogoutRedirectPath,
-		"public.auth.post_logout_redirect_path",
-		publicAuthPostLogoutRedirectPath,
-		"public auth post-logout redirect path",
-	)
-
-	if err := flags.Parse(args); err != nil {
-		return fmt.Errorf("config: parse flags: %w", err)
-	}
-
-	cfg.App.Name = appName
-	cfg.App.Port = appPort
-	cfg.Public.AppName = publicAppName
-	cfg.Public.APIBaseURL = publicAPIBaseURL
-	cfg.Public.Auth.Issuer = publicAuthIssuer
-	cfg.Public.Auth.ClientID = publicAuthClientID
-	cfg.Public.Auth.Scopes = splitList(publicAuthScopes)
-	cfg.Public.Auth.RedirectPath = publicAuthRedirectPath
-	cfg.Public.Auth.PostLogoutRedirectPath = publicAuthPostLogoutRedirectPath
-
-	return nil
-}
-
-func overrideStringFromEnv(key string, dest *string) {
-	if value, ok := os.LookupEnv(key); ok {
-		*dest = value
-	}
-}
-
-func overrideStringSliceFromEnv(key string, dest *[]string) {
-	if value, ok := os.LookupEnv(key); ok {
-		*dest = splitList(value)
-	}
-}
-
-func overrideIntFromEnv(key string, dest *int) error {
-	if value, ok := os.LookupEnv(key); ok {
-		parsed, err := strconv.Atoi(strings.TrimSpace(value))
-		if err != nil {
-			return fmt.Errorf("config: parse %s: %w", key, err)
-		}
-		*dest = parsed
-	}
-
-	return nil
-}
-
-func splitList(value string) []string {
-	if strings.TrimSpace(value) == "" {
-		return []string{}
-	}
-
-	parts := strings.Split(value, ",")
-	values := make([]string, 0, len(parts))
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		values = append(values, part)
-	}
-
-	return values
+	return runtimeconfig.Load(*Default(), args, runtimeconfig.WithFlags(flags))
 }

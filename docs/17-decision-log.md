@@ -96,6 +96,8 @@
 | 65 | Manual validation over struct tags | Startup-time concern. Simple rules. 10-line function. | [06](06-configuration.md) |
 | 66 | Secrets only via env vars | YAML is in version control. Secrets in VCS = security incident. | [06](06-configuration.md) |
 | 132 | Generated public runtime config for the browser | Browser gets an explicit proto-defined safe subset at `/_gofra/config.js`, loaded from generated `public.*` config and emitted as typed Go and TS APIs. | [06](06-configuration.md) |
+| 133 | Double-underscore env var nesting (`GOFRA_APP__PORT`) | Single-underscore transform is ambiguous for keys with underscores (`auto_migrate`, `client_id`). `__` is industry standard (Docker Compose, .NET). | [06](06-configuration.md) |
+| 134 | Generic `runtimeconfig.Load[T]` in the framework | Config loading is framework logic, not app logic. Shipping 160 lines of loading boilerplate into every scaffold prevents bug propagation and requires manual wiring for each new field. | [06](06-configuration.md) |
 
 ## Auth & Authz (Decisions #67–79, #124–129)
 

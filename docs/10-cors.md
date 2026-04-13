@@ -149,7 +149,7 @@ cors:
 
 ```yaml
 # Production (via env var)
-# GOFRA_CORS_ALLOWED_ORIGINS=https://myapp.com,https://www.myapp.com
+# GOFRA_CORS__ALLOWED_ORIGINS=https://myapp.com,https://www.myapp.com
 ```
 
 **Reason for not defaulting to `*`**: bearer-token requests can technically

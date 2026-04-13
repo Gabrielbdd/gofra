@@ -250,34 +250,44 @@ Production overrides come from environment variables.
 
 ### Environment Variables
 
-Env vars override YAML values. The mapping convention:
+Env vars override YAML values. Double-underscore (`__`) separates nesting
+levels; single underscores are preserved as literal characters within a key
+segment:
 
 ```
 YAML path             → env var
-app.name              → GOFRA_APP_NAME
-app.port              → GOFRA_APP_PORT
-database.dsn          → GOFRA_DATABASE_DSN
-database.auto_migrate → GOFRA_DATABASE_AUTO_MIGRATE
-restate.ingress_url   → GOFRA_RESTATE_INGRESS_URL
-auth.issuer           → GOFRA_AUTH_ISSUER
-auth.client_id        → GOFRA_AUTH_CLIENT_ID
-public.api_base_url   → GOFRA_PUBLIC_API_BASE_URL
-public.sentry_dsn     → GOFRA_PUBLIC_SENTRY_DSN
-public.auth.issuer    → GOFRA_PUBLIC_AUTH_ISSUER
-public.auth.client_id → GOFRA_PUBLIC_AUTH_CLIENT_ID
-auth.redirect_path    → GOFRA_AUTH_REDIRECT_PATH
-observability.endpoint→ GOFRA_OBSERVABILITY_ENDPOINT
-mail.smtp_pass        → GOFRA_MAIL_SMTP_PASS
+app.name              → GOFRA_APP__NAME
+app.port              → GOFRA_APP__PORT
+database.dsn          → GOFRA_DATABASE__DSN
+database.auto_migrate → GOFRA_DATABASE__AUTO_MIGRATE
+restate.ingress_url   → GOFRA_RESTATE__INGRESS_URL
+auth.issuer           → GOFRA_AUTH__ISSUER
+auth.client_id        → GOFRA_AUTH__CLIENT_ID
+public.api_base_url   → GOFRA_PUBLIC__API_BASE_URL
+public.sentry_dsn     → GOFRA_PUBLIC__SENTRY_DSN
+public.auth.issuer    → GOFRA_PUBLIC__AUTH__ISSUER
+public.auth.client_id → GOFRA_PUBLIC__AUTH__CLIENT_ID
+auth.redirect_path    → GOFRA_AUTH__REDIRECT_PATH
+observability.endpoint→ GOFRA_OBSERVABILITY__ENDPOINT
+mail.smtp_pass        → GOFRA_MAIL__SMTP_PASS
 ```
 
-The transform: uppercase, replace `.` with `_`, prefix with `GOFRA_`.
+The transform: strip the `GOFRA_` prefix, lowercase, replace `__` with `.`.
 
 **Reason for the `GOFRA_` prefix**: Prevents collisions with other env vars.
-`PORT` is commonly set by platforms (Heroku, Cloud Run). `GOFRA_APP_PORT`
+`PORT` is commonly set by platforms (Heroku, Cloud Run). `GOFRA_APP__PORT`
 is unambiguous.
 
+**Reason for double-underscore nesting**: A naive `_` → `.` transform breaks
+for keys that contain literal underscores (e.g., `auto_migrate`, `client_id`).
+`GOFRA_DATABASE_AUTO_MIGRATE` is ambiguous — it could mean
+`database.auto.migrate` or `database.auto_migrate`. Double-underscore
+removes the ambiguity: `GOFRA_DATABASE__AUTO_MIGRATE` always means
+`database.auto_migrate`. This convention is used by Docker Compose, .NET,
+and koanf's own documentation examples.
+
 **Reason env vars override YAML**: The YAML file has development defaults.
-In production, the platform sets `GOFRA_DATABASE_DSN` to the real connection
+In production, the platform sets `GOFRA_DATABASE__DSN` to the real connection
 string. The developer doesn't need a separate `gofra.production.yaml` — env
 vars handle environment-specific config.
 
@@ -298,7 +308,7 @@ Flags override everything, for one-off development use:
 
 **Reason flags use the same dotted key paths as YAML**: No separate flag
 naming convention to learn. `--app.port=4000` maps to `app.port` in the YAML,
-which maps to `GOFRA_APP_PORT` in env. One key path, three sources.
+which maps to `GOFRA_APP__PORT` in env. One key path, three sources.
 
 **Reason flags are not the primary config mechanism**: Flags are awkward for
 12+ config values. They're useful for quick overrides during development
@@ -308,97 +318,61 @@ which maps to `GOFRA_APP_PORT` in env. One key path, three sources.
 
 ## Loading Implementation
 
+The framework provides `runtimeconfig.Load[T]` — a generic config loader
+backed by koanf that handles the four-layer precedence automatically. The
+generated app's `config/load.go` is a thin wrapper that only defines CLI
+flags:
+
 ```go
-// config/load.go
+// config/load.go — generated app
 package config
 
 import (
-    "log/slog"
-    "os"
-    "strings"
-
-    "github.com/knadh/koanf/v2"
-    "github.com/knadh/koanf/parsers/yaml"
-    "github.com/knadh/koanf/providers/env"
-    "github.com/knadh/koanf/providers/file"
-    "github.com/knadh/koanf/providers/posflag"
+    runtimeconfig "your-framework/runtime/config"
     flag "github.com/spf13/pflag"
 )
 
-func Load() (*Config, error) {
-    k := koanf.New(".")
+func Load(args []string) (*Config, error) {
+    flags := flag.NewFlagSet("gofra", flag.ContinueOnError)
+    flags.Int("app.port", 0, "HTTP server port")
+    flags.String("app.name", "", "application name")
+    flags.String("database.dsn", "", "Database connection string")
+    flags.String("auth.issuer", "", "OIDC issuer URL")
+    // ... additional app-specific flags
 
-    // Layer 1: Defaults (hardcoded)
-    // Embedded in the struct via zero values + explicit defaults below
-    k.Load(confmap.Provider(map[string]interface{}{
-        "app.port":                  3000,
-        "app.env":                   "development",
-        "database.max_open_conns":   25,
-        "database.max_idle_conns":   5,
-        "database.max_lifetime":     "5m",
-        "database.auto_migrate":     false,
-        "restate.service_port":      9080,
-        "auth.redirect_path":        "/auth/callback",
-        "auth.post_logout_redirect_path": "/",
-        "auth.browser_token_store":  "session_storage",
-        "auth.use_refresh_tokens":   true,
-        "auth.scopes": []string{
-            "openid",
-            "profile",
-            "email",
-            "offline_access",
-            "urn:zitadel:iam:org:projects:roles",
-        },
-        "observability.log_level":   "info",
-        "observability.trace_sample_rate": 0.1,
-        "mail.driver":               "log",
-        "storage.driver":            "local",
-        "storage.local_path":        "./storage/app",
-    }, "."), nil)
-
-    // Layer 2: YAML file
-    configPath := "gofra.yaml"
-    if p := os.Getenv("GOFRA_CONFIG"); p != "" {
-        configPath = p
-    }
-    if _, err := os.Stat(configPath); err == nil {
-        if err := k.Load(file.Provider(configPath), yaml.Parser()); err != nil {
-            return nil, fmt.Errorf("loading %s: %w", configPath, err)
-        }
-    }
-
-    // Layer 3: Environment variables
-    // GOFRA_APP_PORT → app.port
-    k.Load(env.Provider("GOFRA_", ".", func(s string) string {
-        return strings.Replace(
-            strings.ToLower(strings.TrimPrefix(s, "GOFRA_")),
-            "_", ".", -1,
-        )
-    }), nil)
-
-    // Layer 4: CLI flags (highest precedence)
-    f := flag.NewFlagSet("gofra", flag.ContinueOnError)
-    f.Int("app.port", 0, "HTTP server port")
-    f.String("app.env", "", "Environment (development, staging, production)")
-    f.String("database.dsn", "", "Database connection string")
-    f.String("auth.issuer", "", "OIDC issuer URL")
-    f.String("auth.client_id", "", "OIDC browser client ID")
-    f.String("observability.log_level", "", "Log level")
-    f.Bool("database.auto_migrate", false, "Run migrations on startup")
-    f.Parse(os.Args[1:])
-
-    // Only load flags that were explicitly set (not defaults)
-    k.Load(posflag.Provider(f, ".", k), nil)
-
-    // Unmarshal into typed struct
-    var cfg Config
-    if err := k.Unmarshal("", &cfg); err != nil {
-        return nil, fmt.Errorf("unmarshaling config: %w", err)
-    }
-
-    return &cfg, nil
+    return runtimeconfig.Load(*Default(), args, runtimeconfig.WithFlags(flags))
 }
 ```
+
+The framework function signature:
+
+```go
+func Load[T any](defaults T, args []string, opts ...LoadOption) (*T, error)
+```
+
+Internally, `Load` uses koanf to apply four layers (lowest to highest
+precedence):
+
+1. **Defaults** — flattened from the `defaults` struct via
+   `structs.Provider(defaults, "koanf")`.
+2. **YAML file** — loaded from `gofra.yaml` (or `GOFRA_CONFIG` env override)
+   via `file.Provider` + `yaml.Parser`.
+3. **Environment variables** — loaded via `env.Provider("GOFRA_", ".", ...)`.
+   Double-underscore (`__`) separates nesting levels.
+4. **CLI flags** — loaded via `posflag.Provider(flags, ".", k)`. Only
+   explicitly-set flags override; default flag values are ignored.
+
+After unmarshalling, if `*T` implements `Validate() error`, it is called
+automatically.
+
+Available options:
+
+- `WithConfigPath(path)` — override the default YAML path (default:
+  `"gofra.yaml"`).
+- `WithEnvPrefix(prefix)` — override the env prefix (default: `"GOFRA_"`).
+- `WithFlags(flags)` — provide a `*pflag.FlagSet` for CLI flag support.
+- `WithoutYAML()`, `WithoutEnv()`, `WithoutFlags()` — skip individual
+  layers.
 
 **Reason for four layers in this order**: Defaults provide sane values when
 nothing is configured. YAML overrides defaults with project-specific settings.
@@ -415,6 +389,13 @@ values. koanf's `posflag.Provider` with the koanf instance as the second
 argument ensures only flags the user actually typed on the command line take
 effect.
 
+**Reason loading lives in the framework, not the app**: The four-layer
+loading strategy is framework-level logic. Shipping it into every generated
+app means bug fixes don't propagate, every new config field requires manual
+wiring, and the framework can't evolve its config contract. The app owns the
+config struct shape and flag definitions; the framework owns the loading
+mechanics.
+
 ---
 
 ## Usage in Application
@@ -422,7 +403,7 @@ effect.
 ```go
 // cmd/app/main.go
 func main() {
-    cfg, err := config.Load()
+    cfg, err := config.Load(os.Args[1:])
     if err != nil {
         slog.Error("failed to load config", "err", err)
         os.Exit(1)
@@ -503,10 +484,10 @@ public:
 ```
 
 ```bash
-GOFRA_PUBLIC_API_BASE_URL=http://localhost:3000
-GOFRA_PUBLIC_SENTRY_DSN=https://example.ingest.sentry.io/123
-GOFRA_PUBLIC_AUTH_ISSUER=http://localhost:9000
-GOFRA_PUBLIC_AUTH_CLIENT_ID=myapp-web
+GOFRA_PUBLIC__API_BASE_URL=http://localhost:3000
+GOFRA_PUBLIC__SENTRY_DSN=https://example.ingest.sentry.io/123
+GOFRA_PUBLIC__AUTH__ISSUER=http://localhost:9000
+GOFRA_PUBLIC__AUTH__CLIENT_ID=myapp-web
 ```
 
 ```bash
@@ -663,8 +644,8 @@ tags with a validation library.
 No multiple YAML files (`gofra.dev.yaml`, `gofra.prod.yaml`). The pattern is:
 
 - `gofra.yaml` contains development defaults (checked in)
-- Production sets env vars: `GOFRA_DATABASE_DSN`, `GOFRA_APP_ENV=production`,
-  `GOFRA_OBSERVABILITY_TRACE_SAMPLE_RATE=0.1`, etc.
+- Production sets env vars: `GOFRA_DATABASE__DSN`, `GOFRA_APP__ENV=production`,
+  `GOFRA_OBSERVABILITY__TRACE_SAMPLE_RATE=0.1`, etc.
 - Staging is the same as production with different env var values
 
 **Reason for no per-environment YAML files**: Per-environment files proliferate
@@ -686,21 +667,21 @@ auth:
   issuer: "https://auth.myapp.com"
   client_id: "myapp-browser" # public OIDC client ID, safe to check in
   service_account:
-    key_path: "" # set via GOFRA_AUTH_SERVICE_ACCOUNT_KEY_PATH
+    key_path: "" # set via GOFRA_AUTH__SERVICE_ACCOUNT__KEY_PATH
 
 mail:
   driver: smtp
   smtp_host: smtp.example.com
   smtp_port: 587
-  smtp_user: ""    # set via GOFRA_MAIL_SMTP_USER
-  smtp_pass: ""    # set via GOFRA_MAIL_SMTP_PASS
+  smtp_user: ""    # set via GOFRA_MAIL__SMTP_USER
+  smtp_pass: ""    # set via GOFRA_MAIL__SMTP_PASS
 ```
 
 ```bash
 # Production env
-export GOFRA_MAIL_SMTP_USER="noreply@myapp.com"
-export GOFRA_MAIL_SMTP_PASS="s3cret"
-export GOFRA_DATABASE_DSN="postgres://user:pass@db.internal/myapp"
+export GOFRA_MAIL__SMTP_USER="noreply@myapp.com"
+export GOFRA_MAIL__SMTP_PASS="s3cret"
+export GOFRA_DATABASE__DSN="postgres://user:pass@db.internal/myapp"
 ```
 
 **Reason**: `gofra.yaml` is in version control. Secrets in version control

@@ -27,7 +27,7 @@ run = "env GOCACHE=${GOCACHE:-/tmp/gofra-gocache} go test ./..."
 run = "env GOCACHE=${GOCACHE:-/tmp/gofra-gocache} go run ./cmd/gofra --help"
 
 [tasks."gen:runtimeconfig"]
-run = "env GOCACHE=${GOCACHE:-/tmp/gofra-gocache} go run ./cmd/gofra-gen-runtimeconfig --help"
+run = "env GOCACHE=${GOCACHE:-/tmp/gofra-gocache} go run ./cmd/gofra generate runtime-config -h"
 
 [tasks.new]
 run = "env GOCACHE=${GOCACHE:-/tmp/gofra-gocache} go run ./cmd/gofra new {{arg(i=0)}}"
@@ -57,10 +57,9 @@ mise run smoke:new
 it generates a temporary app and verifies that the generated project passes
 `go test ./...`.
 
-The dedicated `cmd/gofra-gen-runtimeconfig` binary is still a temporary slice
-entrypoint in the framework repo. The intended public UX is
-`gofra generate runtime-config`, with normal app developers usually relying on
-`mise run gen` or `mise run dev` rather than invoking the generator directly.
+`gofra generate runtime-config` is now part of the public CLI surface, with
+normal app developers usually relying on `mise run gen` or `mise run dev`
+rather than invoking the generator directly.
 
 `mise trust` is required once per checkout before mise will execute the repo's
 task file.
@@ -205,9 +204,8 @@ The intended implementation split behind that CLI is:
 - `internal/scaffold/` for `gofra new`
 - `internal/generate/` for `gofra generate ...`
 
-The current repo still uses `internal/projectgen/` and
-`internal/runtimeconfiggen/` as transitional names while that organization
-settles.
+The current repo now uses `internal/scaffold/` and
+`internal/generate/runtimeconfig/` for the implemented runtime-config slice.
 
 ## Current Scaffold Strategy
 
@@ -218,7 +216,7 @@ settling.
 The current implementation strategy is:
 
 1. Build a reusable framework slice at the repo root.
-2. Wire that slice into `internal/projectgen/starter/full/`.
+2. Wire that slice into `internal/scaffold/starter/full/`.
 3. Test `gofra new` by generating a real app into a temp directory and running
    `go test ./...` there.
 4. Extract narrower post-create generators only after the base starter contract
@@ -227,18 +225,17 @@ The current implementation strategy is:
 The runtime-config feature follows this pattern today:
 
 - reusable framework code in public runtime packages
-- project bootstrap in scaffold internals
-- generator internals in private generate packages
-- the intended public CLI surface in `cmd/gofra/`
-- a temporary dedicated codegen entrypoint in `cmd/gofra-gen-runtimeconfig/`
-- starter-owned app wiring in `internal/projectgen/starter/full/`
+- project bootstrap in `internal/scaffold/`
+- generator internals in `internal/generate/runtimeconfig/`
+- the public CLI surface in `cmd/gofra/`
+- starter-owned app wiring in `internal/scaffold/starter/full/`
 
 In current code, those responsibilities are implemented primarily by:
 
 - `runtimeconfig/`
-- `internal/projectgen/`
-- `internal/runtimeconfiggen/`
-- `internal/projectgen/starter/full/`
+- `internal/scaffold/`
+- `internal/generate/runtimeconfig/`
+- `internal/scaffold/starter/full/`
 
 `gofra new` currently performs one job only:
 

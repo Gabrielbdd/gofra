@@ -1,4 +1,4 @@
-package projectgen
+package scaffold
 
 import (
 	"embed"
@@ -66,8 +66,8 @@ func LoadFramework(dir string) (Framework, error) {
 		return Framework{}, err
 	}
 
-	if _, err := os.Stat(filepath.Join(absDir, "internal", "projectgen", "starter", "full")); err != nil {
-		return Framework{}, fmt.Errorf("framework root %q does not contain internal/projectgen/starter/full", absDir)
+	if _, err := os.Stat(filepath.Join(absDir, "internal", "scaffold", "starter", "full")); err != nil {
+		return Framework{}, fmt.Errorf("framework root %q does not contain internal/scaffold/starter/full", absDir)
 	}
 
 	modulePath, err := readModulePath(filepath.Join(absDir, "go.mod"))

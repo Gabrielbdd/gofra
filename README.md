@@ -15,7 +15,7 @@ The repo is still early. The three surfaces that matter are:
 The current generator contract is deliberately small:
 
 - `gofra new` copies a full runnable starter from
-  `internal/projectgen/starter/full/`
+  `internal/scaffold/starter/full/`
 - the generated app imports framework packages from this repo as a library
 - app-owned files such as `cmd/app`, `config/`, `proto/`, `gen/`, and `web/`
   are created in the generated project
@@ -96,7 +96,7 @@ You can also run the underlying commands directly:
 ```bash
 go run ./cmd/gofra --help
 go run ./cmd/gofra new ../myapp
-go run ./cmd/gofra-gen-runtimeconfig --help
+go run ./cmd/gofra generate runtime-config -h
 go test ./...
 ```
 
@@ -105,11 +105,11 @@ go test ./...
 The important directories right now are:
 
 - `cmd/gofra/`: the public CLI entrypoint
-- `internal/projectgen/`: starter copy logic and generation tests
-- `internal/projectgen/starter/full/`: the canonical generated-app source tree
+- `internal/scaffold/`: starter copy logic and generation tests
+- `internal/scaffold/starter/full/`: the canonical generated-app source tree
 - `runtimeconfig/`: reusable framework code already exposed as a library
-- `internal/runtimeconfiggen/`: the slice-specific generator internals for
-  runtime config
+- `internal/generate/runtimeconfig/`: the slice-specific generator internals
+  for runtime config
 - `docs/`: the architecture and product contract
 
 The intended long-term organization is:

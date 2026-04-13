@@ -1,4 +1,4 @@
-package projectgen
+package scaffold
 
 import (
 	"bytes"

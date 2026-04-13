@@ -241,22 +241,21 @@ is the contract for what a fresh generated application looks like.
 ### Current Framework Repo Layout
 
 The current code keeps reusable packages at the repo root and keeps the
-canonical generated-app starter under `internal/projectgen/starter/`:
+canonical generated-app starter under `internal/scaffold/starter/`:
 
 ```
 gofra/
 ├── go.mod
 ├── runtimeconfig/              # Reusable runtime-config resolver + HTTP handler
 ├── internal/
-│   ├── projectgen/
+│   ├── scaffold/
 │   │   ├── generator.go        # Embedded starter copy + token replacement
 │   │   └── starter/full/       # Canonical generated app source tree
-│   └── runtimeconfiggen/       # Runtime-config generator internals (not public API)
+│   └── generate/
+│       └── runtimeconfig/      # Runtime-config generator internals (not public API)
 ├── cmd/
 │   ├── gofra/
 │   │   └── main.go             # `gofra new` and future `gofra generate ...`
-│   └── gofra-gen-runtimeconfig/
-│       └── main.go             # Temporary slice entrypoint while the public UX converges on `gofra generate runtime-config`
 ├── docs/                       # Product contract and architecture docs
 ├── AGENTS.md
 └── CLAUDE.md
@@ -273,7 +272,7 @@ flat root-package growth.
 should stay private. The public interface is the `gofra` command, not the code
 that renders templates.
 
-**Reason for `internal/projectgen/starter/full/`**: `gofra new` needs one
+**Reason for `internal/scaffold/starter/full/`**: `gofra new` needs one
 canonical source tree now. Keeping it inside the framework repo makes the
 generated app contract explicit, reviewable, and testable without pretending
 that the framework repo itself is the application.
@@ -308,8 +307,8 @@ docs/
 ```
 
 This is the intended architectural direction, not a claim that the repo has
-already finished renaming its current directories. Today the equivalent code is
-still primarily under `internal/projectgen/`, `internal/runtimeconfiggen/`, and
+already finished every planned package rename. Today the equivalent code is
+primarily under `internal/scaffold/`, `internal/generate/runtimeconfig/`, and
 root packages such as `runtimeconfig/`.
 
 The main reason for this shape is to make the three surfaces visible at a
@@ -339,7 +338,7 @@ but it is intentionally smaller than the full target layout below.
 
 - Framework-owned code stays at the repo root and is imported by generated apps
   as a library.
-- Starter-owned files live under `internal/projectgen/starter/full/` and are
+- Starter-owned files live under `internal/scaffold/starter/full/` and are
   copied into new applications by `gofra new`.
 - Future post-create generators will write additional app-owned files into the
   generated project after the base starter contract is stable.

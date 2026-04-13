@@ -83,9 +83,9 @@ core system, API, Restate, database, shutdown, and decision-log docs on the
 same `Connect + sqlc + Restate + Zitadel + React SPA` contract. The
 architecture docs now also distinguish the repo's three surfaces: the public
 `gofra` CLI, public runtime packages, and starter-owned generated app files,
-with `internal/projectgen/starter/full/` documented as the canonical current
+with `internal/scaffold/starter/full/` documented as the canonical current
 starter source and `internal/scaffold` / `internal/generate` recorded as the
-intended internal direction.
+internal direction.
 
 ### 2. One Auth Model
 

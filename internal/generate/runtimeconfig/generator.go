@@ -49,7 +49,7 @@ import (
 	{{ .RuntimeAlias }} "{{ .RuntimeImport }}"
 )
 
-// {{ .FunctionName }} is scaffolded output from gofra-gen-runtimeconfig.
+// {{ .FunctionName }} is scaffolded output from gofra generate runtime-config.
 // The proto descriptor-driven field mapping still needs to replace this stub.
 func {{ .FunctionName }}(cfg *{{ .ConfigType }}) (*{{ .RuntimeAlias }}.{{ .RuntimeType }}, error) {
 	if cfg == nil {

@@ -1,12 +1,14 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 
-	"databit.com.br/gofra/internal/projectgen"
+	runtimeconfiggen "databit.com.br/gofra/internal/generate/runtimeconfig"
+	"databit.com.br/gofra/internal/scaffold"
 )
 
 func main() {
@@ -19,6 +21,11 @@ func main() {
 	case "new":
 		if err := runNew(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "gofra new: %v\n", err)
+			os.Exit(1)
+		}
+	case "generate":
+		if err := runGenerate(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "gofra generate: %v\n", err)
 			os.Exit(1)
 		}
 	case "help", "-h", "--help":
@@ -37,6 +44,9 @@ func runNew(args []string) error {
 	frameworkDir := flags.String("framework-dir", "", "path to the local gofra framework checkout")
 
 	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
 		return err
 	}
 
@@ -51,13 +61,13 @@ func runNew(args []string) error {
 		return err
 	}
 
-	opts := projectgen.Options{
+	opts := scaffold.Options{
 		Destination:     targetDir,
 		ModulePath:      *modulePath,
 		FrameworkDir:    framework.Dir,
 		FrameworkModule: framework.Module,
 	}
-	if err := projectgen.Generate(opts); err != nil {
+	if err := scaffold.Generate(opts); err != nil {
 		return err
 	}
 
@@ -70,20 +80,38 @@ func runNew(args []string) error {
 	return nil
 }
 
-func resolveFramework(frameworkDir string) (projectgen.Framework, error) {
+func runGenerate(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: gofra generate <subcommand> [flags]")
+	}
+
+	switch args[0] {
+	case "runtime-config":
+		err := runtimeconfiggen.Run(args[1:], os.Stderr)
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		return err
+	default:
+		return fmt.Errorf("unknown generator %q", args[0])
+	}
+}
+
+func resolveFramework(frameworkDir string) (scaffold.Framework, error) {
 	if frameworkDir != "" {
-		return projectgen.LoadFramework(frameworkDir)
+		return scaffold.LoadFramework(frameworkDir)
 	}
 
 	wd, err := os.Getwd()
 	if err != nil {
-		return projectgen.Framework{}, err
+		return scaffold.Framework{}, err
 	}
 
-	return projectgen.DetectFramework(wd)
+	return scaffold.DetectFramework(wd)
 }
 
 func usage(w *os.File) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  gofra new [--module module/path] [--framework-dir /path/to/gofra] <directory>")
+	fmt.Fprintln(w, "  gofra generate runtime-config [flags]")
 }

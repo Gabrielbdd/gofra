@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"databit.com.br/gofra/internal/runtimeconfiggen"
+	runtimeconfiggen "databit.com.br/gofra/internal/generate/runtimeconfig"
 )
 
 func TestRenderGoBinderStub(t *testing.T) {

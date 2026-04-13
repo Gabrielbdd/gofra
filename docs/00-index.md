@@ -40,6 +40,7 @@ must be softened or deferred until the framework actually solves them.
 | 16 | [Testing](16-testing.md) | Connect handler tests, Restate integration tests, RestateRecorder, factories. |
 | 17 | [Decision Log](17-decision-log.md) | All 134 numbered decisions with rationale, organized by subsystem. |
 | 18 | [V1 Readiness Checklist](18-readiness-checklist.md) | The promises worth keeping for v1, release blockers, ship gates, and deferred scope. |
+| 19 | [Implementation & Documentation Gaps](19-implementation-gaps.md) | What is documented but not yet implemented or user-documented, with checklists. |
 
 ### Technology Stack Summary
 

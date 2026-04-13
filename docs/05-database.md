@@ -516,6 +516,13 @@ func (s *PostsService) CreatePost(
 }
 ```
 
+**Boundary note**: this pattern is valid for "write row, then trigger durable
+follow-up work", but it is not a framework idempotency guarantee. If the client
+retries the RPC, Gofra does not deduplicate the earlier `CreatePost` database
+write automatically. If the mutation itself must be retry-safe, move that
+mutation under Restate ownership instead of assuming `request_id` on the HTTP
+request is enough.
+
 **Reason for `*sqlc.Queries` as a struct field**: Explicit dependency injection.
 The `Queries` struct wraps a `*pgx.Pool` (or `*sql.DB`). It's created once in
 `main()` and passed to each handler. No global database accessor.

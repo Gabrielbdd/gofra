@@ -250,20 +250,30 @@ This aligns with the database layer's soft-delete conventions.
 
 ### AIP-155: Request Identification (request_id)
 
-**Adopt.** Add `string request_id` to mutating requests. It is the client-
-supplied idempotency key for that mutation attempt.
+**Adopt with narrow semantics.** Add `string request_id` to mutating requests.
+It is a client-supplied operation key. Gofra v1 does **not** interpret it as a
+general framework guarantee that duplicate mutations are deduplicated or that a
+retried request returns the original result.
 
 ```protobuf
 message CreatePostRequest {
   Post post = 1;
-  string request_id = 2;   // client-generated UUID for idempotency
+  string request_id = 2;   // client-generated operation key
 }
 ```
 
-The framework can forward `request_id` to Restate when dispatching durable
-work. The exact end-to-end mutation semantics for database writes remain a
-framework design responsibility and should not be overstated in the API
-contract alone.
+`request_id` exists for three narrower purposes:
+
+1. request correlation across clients, handlers, logs, and durable work
+2. forwarding to Restate idempotency keys when the mutation is actually handed
+   off to Restate
+3. application-level hooks when a specific service chooses to implement its own
+   deduplication strategy
+
+Direct Connect-handler mutations that write to the database do not become
+idempotent just because they carry `request_id`. Outside the Restate boundary,
+Gofra only promises normal database transaction, constraint, and optimistic
+concurrency semantics.
 
 ---
 
@@ -505,7 +515,7 @@ message CreatePostRequest {
   string title = 1 [(buf.validate.field).string = {min_len: 1, max_len: 255}];
   string body = 2 [(buf.validate.field).string.min_len = 10];
   repeated string tags = 3;
-  string request_id = 4;                              // AIP-155 (client-supplied idempotency key)
+  string request_id = 4;                              // AIP-155 (client-supplied operation key)
   bool validate_only = 5;                             // AIP-163
 }
 
@@ -557,7 +567,8 @@ The AIP patterns compose with our existing architecture:
 3. **Connect handler** implements the generated interface and uses sqlc-
    generated queries for database access
 4. **request_id may be forwarded to Restate idempotency keys** when dispatching
-   durable work
+   durable work, but this only defines semantics for work actually executed by
+   Restate
 5. **validate_only** is checked early in the handler — run validation, return
    result without persisting
 6. **etag** is computed from `update_time` or a hash — checked in the handler
@@ -565,6 +576,11 @@ The AIP patterns compose with our existing architecture:
 7. **Error codes** use Connect's typed errors, which match AIP-193 exactly
 8. **Soft delete** sets `delete_time` in the database, handler checks
    `show_deleted` on List, returns deleted resources on Get
+
+**Mutation boundary rule**: if an application needs retry-safe mutation
+semantics, put the mutation itself under Restate ownership. A direct Connect
+handler that writes to Postgres and then returns is just a normal request
+handler, not an idempotent execution boundary.
 
 ### Linting
 

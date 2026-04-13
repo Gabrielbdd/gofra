@@ -18,7 +18,7 @@
 | 4 | AIP conventions | Consistent naming, pagination, errors. Enforced by linting. | [03](03-api-layer.md) |
 | 5 | `{action}_time` fields | AIP-148. `create_time` not `created_at`. One convention. | [03](03-api-layer.md) |
 | 6 | Pagination on all List methods | AIP-158. Adding later is breaking. `page_token` is opaque. | [03](03-api-layer.md) |
-| 7 | `request_id` for idempotency | AIP-155. Client-supplied idempotency key. Forwarded to durable work where applicable. | [03](03-api-layer.md) |
+| 7 | `request_id` as an operation key, not a blanket mutation guarantee | AIP-155. Client-supplied correlation key. Forwarded to Restate idempotency where applicable, but direct Connect-handler mutations are not deduplicated by the framework. | [03](03-api-layer.md) |
 | 8 | `FieldMask` on Update | AIP-161. Prevents overwrite with proto zero values. | [03](03-api-layer.md) |
 | 9 | `validate_only` on mutations | AIP-163. Enables frontend dry-run validation. | [03](03-api-layer.md) |
 | 10 | Soft delete with `delete_time` | AIP-164. Undelete via custom method. | [03](03-api-layer.md) |

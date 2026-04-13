@@ -105,21 +105,27 @@ for `sessionStorage`, refresh handling, logout, route protection, and
 private-by-default RPCs, plus a canonical `auth` config block in the main
 configuration document.
 
-### 3. Real Idempotency Semantics
+### 3. Explicit Mutation Boundary
 
-- [ ] Replace vague `request_id` claims with an explicit mutation strategy.
-- [ ] Define how database writes and Restate dispatch compose safely.
-- [ ] State clearly whether Gofra provides deduplication, exactly-once effects,
-  at-least-once delivery, or only idempotency hooks.
-- [ ] Add tests and examples that cover client retries, duplicate submission,
-  and crash windows between DB mutation and durable dispatch.
+- [x] Replace vague `request_id` claims with an explicit boundary.
+- [x] State clearly that Gofra v1 does not provide general request-layer
+  deduplication for direct Connect-handler mutations.
+- [x] State clearly that `request_id` has framework-defined idempotency
+  semantics only when the mutation is handed off to Restate.
+- [ ] Define the preferred synchronous and asynchronous patterns for mutations
+  that require Restate-owned retry-safe execution.
+- [ ] Add tests and examples that distinguish direct handler mutations from
+  Restate-owned mutation flows.
 
-**Why this is release-critical**: mutation safety is part of the framework
-promise. Hand-waving here becomes data corruption later.
+**Why this is release-critical**: the mutation boundary is part of the
+framework promise. If Gofra implies retry safety in places where it does not
+exist, applications will ship duplicate writes and unsafe crash behavior.
 
-**Progress**: Core docs no longer promise end-to-end exactly-once behavior, but
-the actual mutation and deduplication strategy is still undefined. This entire
-section remains open.
+**Progress**: The docs now make one architectural claim: Restate owns retry and
+deduplication semantics for work it executes; direct Connect-handler mutations
+do not get framework-level idempotency. What remains open is documenting the
+canonical patterns and tests for putting mutation-critical paths behind that
+boundary.
 
 ### 4. Explicit Tenancy Decision
 
@@ -200,8 +206,8 @@ value proposition, not an afterthought.
 ### 10. Test Matrix For The Promises Kept
 
 - [ ] Keep unit tests, Connect handler tests, and Restate integration tests.
-- [ ] Add tests for auth refresh/logout, idempotency, async failure handling,
-  workflow compensation, and migration safety.
+- [ ] Add tests for auth refresh/logout, direct-vs-Restate mutation semantics,
+  async failure handling, workflow compensation, and migration safety.
 - [ ] If multi-tenancy is kept, add tenancy isolation tests before release.
 
 **Why this is release-critical**: Gofra should only promise behavior it can
@@ -212,8 +218,8 @@ generator output, Go resolver/handler behavior, and frontend loader/bootstrap
 behavior. That test shape now also covers the generated `public.*` config
 subtree and the binder from `cfg.Public` to the runtime proto. The initial
 scaffold includes basic Go tests for the shared runtime-config resolver,
-handler, and generator renderers. The broader auth, idempotency, workflow, and
-tenancy matrix is still open.
+handler, and generator renderers. The broader auth, mutation-boundary,
+workflow, and tenancy matrix is still open.
 
 ---
 
@@ -224,7 +230,8 @@ Do the work in this order:
 1. Stabilize the docs contract around one architecture.
 2. Choose and document the auth model.
 3. Choose and document the tenancy scope.
-4. Solve idempotency and DB plus Restate composition.
+4. Define the mutation boundary and the preferred Restate-owned safe mutation
+   patterns.
 5. Fix config, health, and shutdown semantics.
 6. Lock down tooling reproducibility.
 7. Add production security and ops guidance.
@@ -244,7 +251,9 @@ Gofra v1 is not ready to ship until all of the following are true:
 - [ ] The documentation describes one coherent framework, not multiple
   competing designs.
 - [ ] Auth works end to end with one documented refresh and logout story.
-- [ ] A duplicate client mutation behaves deterministically.
+- [ ] Mutation safety semantics are explicit: direct handler mutations are not
+  promised idempotent, and Restate-owned mutation flows have documented retry
+  and deduplication behavior.
 - [ ] A durable workflow can succeed, retry, fail terminally, and be inspected
   operationally.
 - [ ] Production deployment has a credible runbook for startup, migration,

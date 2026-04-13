@@ -622,11 +622,12 @@ simple grammar (`status = "published" AND author_id = 42`) is easier to type
 in client code and flexible enough for most use cases. The server parses and
 validates it; invalid filters return `InvalidArgument`.
 
-**Reason for `request_id` (AIP-155)**: Client-generated UUID for idempotency. If
-the client retries a Create request with the same `request_id`, the server
-returns the result of the original request without re-executing. This maps
-directly to Restate's idempotency key — the Connect handler passes `request_id`
-through to Restate when dispatching durable work.
+**Reason for `request_id` (AIP-155)**: Client-generated UUID for operation
+correlation and Restate handoff. Gofra v1 does not promise that retrying a
+direct Connect mutation with the same `request_id` returns the original result
+without re-executing. The field becomes a framework-level idempotency key only
+when the mutation is handed off to Restate and the handler forwards it through
+to Restate's idempotency system.
 
 **Reason for `validate_only` (AIP-163)**: The server validates the request and
 returns what the resource would look like, without persisting. Costs nothing to
@@ -898,10 +899,10 @@ func (s *PostsService) CreatePost(
 
 **Reason for passing `request_id` as idempotency key**: The client's `request_id`
 (AIP-155) can be forwarded to Restate's idempotency system for durable
-dispatches. This prevents duplicate Restate sends for the same client request.
-The full mutation contract for database writes must still be designed
-explicitly; the framework should not imply stronger guarantees than it
-implements.
+dispatches. This defines retry and deduplication behavior for the Restate-owned
+work only. It does **not** retroactively make earlier database writes in the
+Connect handler idempotent. Direct handler mutations keep only normal database
+transaction, uniqueness, and optimistic concurrency guarantees.
 
 ---
 
@@ -1260,7 +1261,7 @@ will retry them on the next available instance. No data is lost.
 | 4 | AIP conventions | Consistent naming, pagination, errors. Enforced by linting. |
 | 5 | `{action}_time` fields | AIP-148. `create_time` not `created_at`. One convention, no ambiguity. |
 | 6 | Pagination on all List methods | AIP-158. Adding later is breaking. `page_token` is opaque. |
-| 7 | `request_id` for idempotency | AIP-155. Client-supplied idempotency key. Forwarded to durable work where applicable. |
+| 7 | `request_id` as an operation key, not a blanket mutation guarantee | AIP-155. Client-supplied correlation key. Forwarded to Restate idempotency where applicable, but direct Connect-handler mutations are not deduplicated by the framework. |
 | 8 | `FieldMask` on Update | AIP-161. Prevents accidental overwrite with proto zero values. |
 | 9 | `validate_only` on mutations | AIP-163. Free to implement. Enables frontend dry-run. |
 | 10 | Soft delete with `delete_time` | AIP-164. Consistent with other `_time` fields. Undelete via custom method. |

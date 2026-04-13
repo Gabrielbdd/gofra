@@ -23,7 +23,7 @@ must be softened or deferred until the framework actually solves them.
 | # | Document | What It Covers |
 |---|----------|---------------|
 | 01 | [Design Principles & Technology Choices](01-foundations.md) | Why Go, Connect RPC, Restate, Postgres, React. Design principles. Non-goals. |
-| 02 | [System Architecture](02-system-architecture.md) | Runtime diagram, project structure, two listeners, code generation flow. |
+| 02 | [System Architecture](02-system-architecture.md) | Runtime diagram, framework-repo layout, generated-app structure, two listeners, code generation flow. |
 | 03 | [API Layer — Connect RPC & Protobuf](03-api-layer.md) | Proto file conventions, AIP guidelines, buf config, code generation, handler patterns. |
 | 04 | [Durable Execution — Restate](04-restate.md) | What Restate replaces, Services/Objects/Workflows, Connect→Restate bridge, event dispatch. |
 | 05 | [Database — sqlc & goose](05-database.md) | sqlc for queries, goose for migrations, pgx driver, auto-migrate, transactions, seed data. |
@@ -38,7 +38,7 @@ must be softened or deferred until the framework actually solves them.
 | 14 | [Tooling — mise & gofra CLI](14-tooling.md) | mise.toml, task definitions, gofra generators, developer workflow. |
 | 15 | [Development Environment — Docker Compose](15-docker-compose.md) | Postgres, Restate, Zitadel, Jaeger setup, port map, network topology. |
 | 16 | [Testing](16-testing.md) | Connect handler tests, Restate integration tests, RestateRecorder, factories. |
-| 17 | [Decision Log](17-decision-log.md) | All 123 numbered decisions with rationale, organized by subsystem. |
+| 17 | [Decision Log](17-decision-log.md) | All 134 numbered decisions with rationale, organized by subsystem. |
 | 18 | [V1 Readiness Checklist](18-readiness-checklist.md) | The promises worth keeping for v1, release blockers, ship gates, and deferred scope. |
 
 ### Technology Stack Summary
@@ -65,9 +65,9 @@ Each document is self-contained. To find information about a specific topic:
 - **What's the shutdown sequence?** → `12-graceful-shutdown.md`
 - **Why was X chosen over Y?** → `17-decision-log.md` (search by topic)
 - **What is actually in scope for v1?** → `18-readiness-checklist.md`
-- **What's the full project directory structure?** → `02-system-architecture.md`
+- **What's the framework repo layout or generated app structure?** → `02-system-architecture.md`
 - **What proto conventions are followed?** → `03-api-layer.md`
 
-Every design decision is numbered (Decision #1 through #123) and includes
+Every design decision is numbered (Decision #1 through #134) and includes
 a rationale. The decision log in `17-decision-log.md` is the complete
 searchable index.

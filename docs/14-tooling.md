@@ -126,6 +126,27 @@ gofra generate migration create_posts    # → db/migrations/..._create_posts.sq
 
 Tasks (build, test, lint, dev) stay in mise. Generators stay in gofra.
 
+## Current Scaffold Strategy
+
+Gofra is not at the point where `gofra new` should generate a complete
+production app yet. The current implementation strategy is:
+
+1. Build a reusable framework slice at the repo root.
+2. Add a dogfood app under `examples/` that exercises that slice end to end.
+3. Use the example as a regression target while the generator contract settles.
+4. Extract the stable shape into `gofra new` only after the slice is coherent.
+
+The runtime-config feature follows this pattern today:
+
+- reusable framework code in `runtimeconfig/`
+- generator internals in `internal/runtimeconfiggen/`
+- a codegen entrypoint in `cmd/gofra-gen-runtimeconfig/`
+- a dogfood app in `examples/basic/`
+
+**Reason**: a framework repo should not pretend to be a generated app. The
+example proves the contract and keeps future generator extraction grounded in a
+working vertical slice.
+
 ## Decisions in This Section
 
 | # | Decision | Rationale |

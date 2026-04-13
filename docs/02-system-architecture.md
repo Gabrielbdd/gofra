@@ -211,6 +211,67 @@ Server).
 
 ## 5. Project Structure
 
+Two different directory structures matter in Gofra and they must not be mixed
+up:
+
+1. The **framework repository** structure, where reusable runtime packages,
+   generators, docs, and dogfood examples live while Gofra itself is being
+   built.
+2. The **generated application** structure, which is what future
+   `gofra new myapp` should produce for application teams.
+
+If these are conflated, the framework starts treating its own repo like a fake
+application. That makes generators, examples, and reusable packages harder to
+evolve coherently.
+
+### Framework Repository Structure
+
+The framework repo keeps reusable packages at the root and uses `examples/` for
+dogfood applications that prove a slice end to end:
+
+```
+gofra/
+├── go.mod
+├── runtimeconfig/              # Reusable runtime-config resolver + HTTP handler
+├── internal/
+│   └── runtimeconfiggen/       # Generator internals (not public API)
+├── cmd/
+│   └── gofra-gen-runtimeconfig/
+│       └── main.go             # Codegen entrypoint for the runtime-config slice
+├── examples/
+│   └── basic/
+│       ├── cmd/app/            # Dogfood app entrypoint
+│       ├── config/             # Example server config + generated public binder
+│       ├── proto/              # Example public runtime-config contract
+│       ├── runtime/v1/         # Example Go runtime-config types
+│       └── web/                # Example frontend loader + shell
+├── docs/                       # Product contract and architecture docs
+├── AGENTS.md
+└── CLAUDE.md
+```
+
+**Reason for reusable packages at the repo root**: these are the framework
+APIs that generated apps should import directly. Hiding them inside an example
+app would invert the dependency direction.
+
+**Reason for `internal/` generator packages**: generator implementation details
+should stay private. The public interface is the `gofra` command, not the code
+that renders templates.
+
+**Reason for `examples/basic/`**: a framework feature should be proven in a
+real runnable app shape before it is generalized into `gofra new` templates.
+The example is both a dogfood target and a future regression fixture.
+
+**Reason for vertical slices instead of full scaffolding first**: Gofra is
+still converging on core contracts. Building one slice end to end keeps the
+repo honest without freezing a premature full-project generator.
+
+### Generated Application Structure
+
+The structure below is the target output of a future `gofra new myapp`
+command. It describes a Gofra application, not the layout of the framework repo
+itself.
+
 ```
 myapp/
 ├── mise.toml                    # Tool versions + task definitions
@@ -313,6 +374,11 @@ own build, own test suite. The Go binary doesn't know or care what framework
 the frontend uses. The contract is the proto file. The frontend could be
 replaced with Svelte, a mobile app, or a third-party integration without
 changing any Go code.
+
+**Reason for documenting both layouts in one place**: future work needs one
+authoritative answer for where framework code should live and what a generated
+application should look like. This section prevents new implementation work from
+smearing those boundaries together.
 
 ---
 
@@ -1118,3 +1184,4 @@ will retry them on the next available instance. No data is lost.
 | 32 | Skip AIP-122 (resource names) | Hierarchical names are for infrastructure APIs. Web apps use `id`/`slug`. |
 | 33 | Skip AIP-151 (LRO) | Restate Workflows are strictly more capable. Polling-based LRO is a step backward. |
 | 34 | Skip AIP-127 (transcoding) | Connect handles HTTP mapping automatically. No annotations needed. |
+| 134 | Framework repo uses reusable root packages plus dogfood apps under `examples/` | Keeps framework code distinct from generated app code and gives every slice a runnable integration target before `gofra new` extraction. |

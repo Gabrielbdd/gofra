@@ -195,3 +195,9 @@
 | # | Decision | Rationale | Doc |
 |---|----------|-----------|-----|
 | 133 | Runtime config tested at generator, handler, and frontend-loader boundaries | Public browser config spans Go, generated code, and SPA startup. One test layer is not enough. | [16](16-testing.md) |
+
+## Framework Development (Decision #134)
+
+| # | Decision | Rationale | Doc |
+|---|----------|-----------|-----|
+| 134 | Framework repo uses reusable root packages plus dogfood apps under `examples/` | Keeps framework code distinct from generated app code and gives each slice a runnable integration target before `gofra new` extraction. | [02](02-system-architecture.md) |

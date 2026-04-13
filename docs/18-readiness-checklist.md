@@ -80,7 +80,10 @@ docs disagree, the framework contract itself is unstable.
 
 **Progress**: Completed by the architecture-alignment pass that normalized the
 core system, API, Restate, database, shutdown, and decision-log docs on the
-same `Connect + sqlc + Restate + Zitadel + React SPA` contract.
+same `Connect + sqlc + Restate + Zitadel + React SPA` contract. The
+architecture docs now also distinguish the framework repo layout from the
+generated app layout, with `examples/basic/` documented as the dogfood target
+for new framework slices.
 
 ### 2. One Auth Model
 

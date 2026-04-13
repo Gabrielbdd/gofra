@@ -10,9 +10,16 @@
 
 ## The Problem
 
-Forge serves a React SPA from Vite in development (`:5173`) and Connect RPC
-from the Go server (`:3000`). These are different origins. Every API call from
-the browser triggers CORS.
+Forge's standard development topology serves the browser from the Go server
+(`:3000`) and proxies frontend pages and assets to Vite (`:5173`) behind that
+same origin. In that default setup, browser API calls are same-origin and do
+not need CORS.
+
+CORS matters when the frontend is served from a different origin than the API:
+
+- a separately hosted SPA
+- a second local frontend origin outside Forge's default dev proxy
+- a third-party browser client talking to the Forge API directly
 
 Connect RPC has specific CORS requirements beyond typical REST APIs:
 
@@ -136,8 +143,8 @@ has no effect.
 # forge.yaml
 cors:
   allowed_origins:
-    - "http://localhost:5173"   # Vite dev server
-    - "http://localhost:3000"   # same-origin (for production)
+    - "https://app.myapp.com"
+    - "https://admin.myapp.com"
 ```
 
 ```yaml
@@ -150,22 +157,13 @@ use wildcard origins when cookies are not involved, but Forge still keeps an
 explicit origin allowlist. Authenticated browser APIs are easier to reason
 about when the intended frontend origins are named directly.
 
-**Development defaults**: When `app.env` is `development`, the framework
-automatically adds `http://localhost:5173` (Vite default) to allowed origins
-if no CORS config is provided. This ensures `mise run dev` works out of the
-box without CORS errors.
+**Reason Forge does not auto-add `http://localhost:5173`**: standard Forge
+development puts Go in front of Vite, so the browser does not talk to `:5173`
+directly. If a project intentionally exposes a separate frontend origin, that
+origin should be listed explicitly.
 
 ```go
 func defaultCORSConfig(env string) CORSConfig {
-    if env == "development" {
-        return CORSConfig{
-            AllowedOrigins: []string{
-                "http://localhost:5173", // Vite dev server
-                "http://localhost:3000", // Go server (same-origin)
-            },
-        }
-    }
-    // Production: must be explicitly configured
     return CORSConfig{}
 }
 ```
@@ -207,8 +205,8 @@ browser makes same-origin requests.
 
 ```
 Development:
-  SPA at http://localhost:5173 → API at http://localhost:3000
-  → CORS required (different port = different origin)
+  Browser at http://localhost:3000 → Go :3000 → Vite :5173 behind proxy
+  → CORS not required in the default Forge topology
 
 Production:
   SPA at https://myapp.com → API at https://myapp.com
@@ -244,8 +242,10 @@ service PostsService {
 The SPA transport uses `useHttpGet: true`:
 
 ```ts
+import { runtimeConfig } from "./runtime-config";
+
 export const transport = createConnectTransport({
-  baseUrl: import.meta.env.VITE_API_URL ?? "",
+  baseUrl: runtimeConfig.apiBaseUrl,
   useHttpGet: true, // enables GET for NO_SIDE_EFFECTS RPCs
 });
 ```
@@ -269,7 +269,7 @@ it's called."
 | 81 | `rs/cors` for CORS middleware | Most widely used, handles all edge cases, standard `net/http` middleware. |
 | 82 | `AllowCredentials: false` for the default bearer-token SPA flow | Browser auth uses `Authorization` headers, not cookies. Preflight still happens, but credential mode is not required. |
 | 83 | Explicit origins even without cookie auth | Bearer-token CORS can technically use `*`, but Forge keeps an explicit allowlist for a clearer browser contract. |
-| 84 | Explicit allowed origins in config | Developer lists origins. Framework adds `localhost:5173` in dev mode automatically. |
+| 84 | Explicit allowed origins in config | Standard Forge dev is same-origin through Go. Separate browser origins must be listed explicitly. |
 | 85 | CORS middleware first in chain | Preflight OPTIONS must be handled before routing, auth, or any other middleware. |
 | 86 | `MaxAge: 7200` | Reduces preflight requests. Chrome's maximum. |
 | 87 | `idempotency_level = NO_SIDE_EFFECTS` for reads | Enables Connect GET. Avoids CORS preflight for read RPCs. Fewer round-trips. |

@@ -94,6 +94,10 @@ mise run migrate          # Run migrations
 mise run dev              # Start Go (air) + Vite
 ```
 
+`mise run dev` starts both processes, but the browser entrypoint is the Go
+server on `http://localhost:3000`. Go serves API routes and `/_forge/config.js`
+directly, and proxies frontend pages/assets to Vite for HMR.
+
 ## forge CLI
 
 **Decision #27.** The `forge` binary handles code generation only — tasks that

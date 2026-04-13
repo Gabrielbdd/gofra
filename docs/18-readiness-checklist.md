@@ -169,6 +169,11 @@ applications and they sit in Forge's claimed area of responsibility.
 **Why this is release-critical**: "works on a clean machine" is a baseline
 requirement for framework usability.
 
+**Progress**: The frontend runtime-config and local browser-entrypoint story
+are now aligned on one model: browser hits Go on `:3000`, Go proxies Vite in
+dev, and public browser config comes from `/_forge/config.js`. Tool/version
+pinning and Restate endpoint cleanup are still open.
+
 ### 9. Operational Baseline
 
 - [ ] Define the minimum logs, traces, metrics, and alerts required in

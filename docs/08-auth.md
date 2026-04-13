@@ -654,13 +654,14 @@ abstraction:
 // web/src/lib/auth.ts
 import { AuthProvider } from "react-oidc-context";
 import { WebStorageStateStore } from "oidc-client-ts";
+import { runtimeConfig } from "./runtime-config";
 
 export const oidcConfig = {
-  authority: import.meta.env.VITE_ZITADEL_ISSUER,
-  client_id: import.meta.env.VITE_ZITADEL_CLIENT_ID,
-  redirect_uri: `${window.location.origin}/auth/callback`,
-  post_logout_redirect_uri: window.location.origin,
-  scope: "openid profile email offline_access urn:zitadel:iam:org:projects:roles",
+  authority: runtimeConfig.auth.issuer,
+  client_id: runtimeConfig.auth.clientId,
+  redirect_uri: `${window.location.origin}${runtimeConfig.auth.redirectPath}`,
+  post_logout_redirect_uri: `${window.location.origin}${runtimeConfig.auth.postLogoutRedirectPath}`,
+  scope: runtimeConfig.auth.scopes.join(" "),
   response_type: "code",
   userStore: new WebStorageStateStore({ store: window.sessionStorage }),
 };
@@ -673,6 +674,11 @@ export function AppAuthProvider({ children }) {
 **Reason for `react-oidc-context`**: Forge ships a React SPA by default. The
 framework should standardize on one React-friendly OIDC integration instead of
 describing multiple incompatible frontend auth layers.
+
+**Reason auth config comes from `runtimeConfig` instead of `import.meta.env`**:
+OIDC issuer and client IDs are deployment settings. Forge loads them from the
+Go-served public runtime config so the SPA bundle does not need rebuilding per
+environment.
 
 ### Protecting Routes
 

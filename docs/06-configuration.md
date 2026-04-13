@@ -409,6 +409,89 @@ passed explicitly to everything that needs it. This is the same explicit
 dependency injection pattern used for the database connection, Restate client,
 and every other dependency.
 
+## Public Runtime Config For The Browser
+
+The browser must not read raw environment variables directly. Forge derives a
+public runtime config message from the server config and exposes it at
+`GET /_forge/config.js`.
+
+The public browser contract is not the same type as `config.Config`. It lives
+in its own proto so the browser-safe allowlist is explicit:
+
+```proto
+// proto/myapp/runtime/v1/runtime_config.proto
+message RuntimeConfig {
+  string api_base_url = 1;
+  AuthConfig auth = 2;
+}
+
+message AuthConfig {
+  string issuer = 1;
+  string client_id = 2;
+  repeated string scopes = 3;
+  string redirect_path = 4;
+  string post_logout_redirect_path = 5;
+}
+```
+
+Forge generates a resolver that binds this proto to `config.Config` by
+convention:
+
+- proto `snake_case` fields map to Go struct fields
+- nested proto messages map to nested config structs
+- repeated fields map to slices
+- only fields present in the runtime-config proto are exposed
+
+```go
+resolver := runtimeconfig.NewResolver(appCfg)
+mux.Handle("/_forge/config.js", runtimeconfig.Handler(resolver))
+```
+
+This generated code uses typed Go field access, not runtime reflection. If a
+bound config path stops existing, the generated code fails to compile.
+
+For request-aware public config, the application can add a mutator:
+
+```go
+resolver := runtimeconfig.NewResolver(
+    appCfg,
+    runtimeconfig.WithMutator(func(ctx context.Context, r *http.Request, cfg *runtimev1.RuntimeConfig) error {
+        // optional dynamic overrides
+        return nil
+    }),
+)
+```
+
+The handler serializes the resolved proto message to JavaScript:
+
+```go
+func RuntimeConfigJS(msg proto.Message) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        payload, _ := protojson.Marshal(msg)
+        w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+        w.Header().Set("Cache-Control", "no-store")
+        fmt.Fprintf(w, "window.__FORGE_CONFIG__ = %s;\n", payload)
+    }
+}
+```
+
+**Reason for a dedicated public proto instead of exposing env vars directly**:
+the server config contains secrets and server-only settings. The browser should
+receive only an explicit allowlist of safe values.
+
+**Reason for a generated resolver instead of handwritten mapping by default**:
+changing the public config contract should not require parallel manual edits in
+Go and TypeScript. The generated binder keeps the common case mechanical and
+type-checked.
+
+**Reason for `/_forge/config.js` instead of build-time `VITE_*` variables**:
+the same frontend bundle can run in different environments without a rebuild.
+The deployment changes server config, not compiled frontend assets.
+
+**Reason for JavaScript instead of HTML templating**: Forge keeps the HTML shell
+static in both dev and prod. The public runtime config path stays the same
+whether the browser is loading Vite-served assets or embedded production files.
+
 ---
 
 ## Validation
@@ -508,3 +591,4 @@ Docker, Kubernetes, and every PaaS.
 | 64 | No global config singleton | Config is a value passed in `main()`. Follows the same DI pattern as every other dependency. |
 | 65 | Manual validation over struct tags | Startup-time concern. Simple rules. 10-line function is clearer than a validation framework. |
 | 66 | Secrets only via env vars | YAML is in version control. Secrets in VCS is a security incident. |
+| 132 | Generated public runtime config for the browser | Browser gets an explicit proto-defined safe subset at `/_forge/config.js`, not raw env vars or secrets. |

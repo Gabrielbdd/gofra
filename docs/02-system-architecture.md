@@ -270,6 +270,7 @@ myapp/
 │
 ├── config/
 │   ├── config.go                # Typed runtime config
+│   ├── public_config.go         # Runtime-config resolver + optional mutator glue
 │   ├── routes.go                # Plain HTTP routes (webhooks, health, SPA)
 │   └── events.go                # Durable event listener map
 │
@@ -282,6 +283,7 @@ myapp/
 │   │   ├── routes/
 │   │   ├── components/
 │   │   ├── lib/
+│   │   │   ├── runtime-config.ts
 │   │   │   └── transport.ts
 │   │   └── gen/                 # Generated TypeScript from proto
 │   │       └── myapp/posts/v1/
@@ -811,20 +813,17 @@ express. Starting with SQL avoids the cliff.
 ### Development Mode
 
 ```
-Browser → Vite dev server (:5173)
+Browser → Go server (:3000)
               │
-              ├── Serves React SPA with HMR
-              └── Proxies /myapp.* → Go server (:3000)
-                                         │
-                                         ├── Connect RPC handlers
-                                         └── Restate service endpoint (:9080)
+              ├── Connect RPC handlers
+              ├── /_forge/config.js
+              └── Proxies frontend pages/assets/HMR → Vite dev server (:5173)
 ```
 
-**Reason for Vite proxy instead of Go serving the SPA in dev**: Vite provides
-sub-second hot module replacement. If the Go server served the SPA, every
-React change would require a page reload. The proxy is configured in
-`vite.config.ts` — Connect RPC paths (`/myapp.posts.v1.PostsService/*`) are
-forwarded to the Go server.
+**Reason for Go as the browser entrypoint in dev**: the browser sees one origin
+in both development and production. Go can serve API routes and public runtime
+config directly, while still proxying frontend requests to Vite for sub-second
+hot module replacement.
 
 ### Production Mode
 
@@ -832,12 +831,27 @@ forwarded to the Go server.
 Browser → Go server (:3000)
               │
               ├── Connect RPC handlers
+              ├── /_forge/config.js
               └── Embedded SPA assets (go:embed web/dist)
 ```
 
 **Reason for embedding**: Single binary deployment. No separate file server,
 no CDN dependency (though one can be placed in front). `embed.FS` serves
 files directly from the binary with proper content types and caching headers.
+
+### Browser Runtime Config
+
+The browser gets deploy-time settings from Go, not from baked frontend env
+variables. Go serves a browser-safe payload at `/_forge/config.js`, and
+`web/index.html` loads it before the frontend bundle.
+
+The payload is defined by a dedicated runtime-config proto and resolved from
+`config.Config` by generated code. Applications can optionally add custom Go
+logic for request-aware public values.
+
+This route contains only public values such as OIDC issuer, public client ID,
+redirect paths, and API base URL. It never exposes secrets or server-only
+configuration.
 
 ### SPA Fallback
 

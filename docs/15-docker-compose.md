@@ -157,8 +157,8 @@ Postgres instance often hosts multiple databases.
 
 | Port | Service | Purpose |
 |------|---------|---------|
-| 3000 | Go server (host) | Connect RPC API |
-| 5173 | Vite (host) | Frontend dev server with HMR |
+| 3000 | Go server (host) | Browser entrypoint, Connect RPC API, `/_forge/config.js` |
+| 5173 | Vite (host) | Frontend dev server with HMR (behind Go proxy) |
 | 5432 | Postgres (Docker) | Database |
 | 8080 | Restate (Docker) | Ingress — app sends durable invocations here |
 | 8081 | Zitadel (Docker) | Login UI + Management API |
@@ -168,7 +168,8 @@ Postgres instance often hosts multiple databases.
 
 **Reason for Zitadel on `:8081` instead of `:8080`**: Restate uses `:8080`
 for ingress. Both are infrastructure services the developer interacts with
-rarely. The Go server on `:3000` and Vite on `:5173` are the daily ports.
+rarely. The Go server on `:3000` is the daily browser entrypoint, and Vite on
+`:5173` stays behind it for frontend development.
 
 ---
 
@@ -345,7 +346,7 @@ vars from `.env` override values in `forge.yaml`.
 │       ▲                                                  │
 │       │ restate pushes invocations via host.docker.internal
 │       │                                                  │
-│  Vite :5173 ──► Go :3000 (proxy for API calls)          │
+│  Browser :3000 ──► Go :3000 ──► Vite :5173 (SPA/HMR proxy) │
 │                                                         │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -392,9 +393,9 @@ The developer then manually:
 
 1. Opens `http://localhost:8081` and logs in as admin
 2. Creates a Project (e.g., "myapp")
-3. Creates an Application (type: PKCE/SPA, redirect URI: `http://localhost:5173/callback`)
+3. Creates an Application (type: PKCE/SPA, redirect URI: `http://localhost:3000/auth/callback`)
 4. Enables "Assert roles on authentication" in project settings
-5. Copies the Client ID and Project ID to `.env`
+5. Copies the Client ID to `.env`
 
 **Reason for manual Zitadel setup**: Automating Zitadel project/application
 creation requires calling the Zitadel API with a service account — which

@@ -8,7 +8,7 @@
 
 ---
 
-## Foundations (Decisions #1–34)
+## Foundations (Decisions #1–34, #130–131)
 
 | # | Decision | Rationale | Doc |
 |---|----------|-----------|-----|
@@ -41,6 +41,8 @@
 | 27 | forge CLI for generators only | Generators need Go code. Tasks are TOML. | [14](14-tooling.md) |
 | 28 | Events as map + loop | ~15 lines. Each listener durable via Restate. | [04](04-restate.md) |
 | 29 | No server-side rendering or templates | API-first. Frontend is replaceable. | [13](13-frontend.md) |
+| 130 | Public browser runtime config via generated `/_forge/config.js` loader | Runtime browser values come from Go without rebuilding the SPA per environment, while staying typed in Go and TS. | [13](13-frontend.md) |
+| 131 | Go is the browser entrypoint in dev and proxies Vite | Same browser origin in dev and prod. Vite still provides HMR behind the proxy. | [13](13-frontend.md) |
 | 30 | `RestateRecorder` for handler tests | Fast HTTP tests without Docker. | [16](16-testing.md) |
 | 31 | Docker-based Restate integration tests | Durable handlers need real journal. | [16](16-testing.md) |
 | 32 | Skip AIP-122 (resource name hierarchy) | Web apps use `id`/`slug`, not `publishers/123/books/456`. | [03](03-api-layer.md) |
@@ -80,7 +82,7 @@
 | 56 | Transactions via WithTx + explicit Begin/Commit | No hidden middleware. Every boundary visible. | [05](05-database.md) |
 | 57 | Seeds via goose --no-versioning | SQL seeds, applied without version tracking. | [05](05-database.md) |
 
-## Configuration (Decisions #58–66)
+## Configuration (Decisions #58–66, #132)
 
 | # | Decision | Rationale | Doc |
 |---|----------|-----------|-----|
@@ -93,6 +95,7 @@
 | 64 | No global config singleton | Config passed from main(). Same DI pattern as everything else. | [06](06-configuration.md) |
 | 65 | Manual validation over struct tags | Startup-time concern. Simple rules. 10-line function. | [06](06-configuration.md) |
 | 66 | Secrets only via env vars | YAML is in version control. Secrets in VCS = security incident. | [06](06-configuration.md) |
+| 132 | Generated public runtime config for the browser | Browser gets an explicit proto-defined safe subset at `/_forge/config.js`, not raw env vars or secrets. | [06](06-configuration.md) |
 
 ## Auth & Authz (Decisions #67–79, #124–129)
 
@@ -126,7 +129,7 @@
 | 81 | `rs/cors` for middleware | Most widely used. Standard `net/http` middleware. | [10](10-cors.md) |
 | 82 | `AllowCredentials: false` for the default bearer-token SPA flow | Browser auth uses `Authorization` headers, not cookies. Preflight still happens, but credential mode is not required. | [10](10-cors.md) |
 | 83 | Explicit origins even without cookie auth | Bearer-token CORS can technically use `*`, but Forge keeps an explicit allowlist for a clearer browser contract. | [10](10-cors.md) |
-| 84 | Explicit allowed origins in config | Framework adds localhost:5173 in dev automatically. | [10](10-cors.md) |
+| 84 | Explicit allowed origins in config | Standard Forge dev is same-origin through Go. Separate browser origins must be listed explicitly. | [10](10-cors.md) |
 | 85 | CORS middleware first in chain | Preflight OPTIONS must be handled before routing. | [10](10-cors.md) |
 | 86 | `MaxAge: 7200` | Chrome's maximum. Reduces preflight requests. | [10](10-cors.md) |
 | 87 | `idempotency_level = NO_SIDE_EFFECTS` for reads | Enables Connect GET. Avoids CORS preflight. | [10](10-cors.md) |

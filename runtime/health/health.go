@@ -11,8 +11,19 @@ import (
 	"time"
 )
 
-// readinessCheckTimeout is the per-probe timeout applied to readiness checks.
-const readinessCheckTimeout = 2 * time.Second
+const (
+	// readinessCheckTimeout is the per-probe timeout applied to readiness checks.
+	readinessCheckTimeout = 2 * time.Second
+
+	// DefaultStartupPath is the Kubernetes-convention path for the startup probe.
+	DefaultStartupPath = "/startupz"
+
+	// DefaultLivenessPath is the Kubernetes-convention path for the liveness probe.
+	DefaultLivenessPath = "/livez"
+
+	// DefaultReadinessPath is the Kubernetes-convention path for the readiness probe.
+	DefaultReadinessPath = "/readyz"
+)
 
 // CheckFunc is a function that reports whether a dependency is healthy.
 // Return nil for healthy, a non-nil error describing the failure otherwise.
@@ -107,7 +118,10 @@ func (c *Checker) ReadinessHandler() http.Handler {
 
 		for _, ch := range c.checks {
 			ctx, cancel := context.WithTimeout(r.Context(), readinessCheckTimeout)
-			err := ch.Fn(ctx)
+			var err error
+			if ch.Fn != nil {
+				err = ch.Fn(ctx)
+			}
 			cancel()
 
 			if err != nil {

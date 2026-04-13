@@ -136,21 +136,39 @@ func Serve(ctx context.Context, cfg Config) error {
 	defer shutdownCancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Error("http shutdown error", "error", err)
+		log.Error("http graceful shutdown failed, forcing close", "error", err)
+		srv.Close()
 	}
 
-	// Phase 3: Resource cleanup.
+	// Phase 3: Resource cleanup with enforced timeout.
 	if cfg.OnShutdown != nil {
-		resourceCtx, resourceCancel := context.WithTimeout(context.Background(), cfg.ResourceShutdownTimeout)
-		defer resourceCancel()
-
-		if err := cfg.OnShutdown(resourceCtx); err != nil {
+		if err := runWithTimeout(cfg.ResourceShutdownTimeout, cfg.OnShutdown); err != nil {
 			log.Error("resource shutdown error", "error", err)
 		}
 	}
 
 	log.Info("shutdown complete")
 	return nil
+}
+
+// runWithTimeout calls fn with a context that has the given timeout. If fn
+// does not return before the deadline, runWithTimeout returns
+// context.DeadlineExceeded without waiting for fn to finish. This prevents a
+// misbehaving callback from hanging the process past the claimed shutdown
+// budget.
+func runWithTimeout(timeout time.Duration, fn func(context.Context) error) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() { done <- fn(ctx) }()
+
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func applyDefaults(cfg Config) Config {

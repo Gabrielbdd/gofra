@@ -17,7 +17,7 @@ Today the starter includes:
 - config code generation via `mise run generate` (produces `config/*_gen.go`)
 - optional YAML overrides in `gofra.yaml`
 - a minimal embedded web shell in `web/`
-- health check endpoints at `/healthz/startup`, `/healthz/live`, `/healthz/ready`
+- health check endpoints at `/startupz`, `/livez`, `/readyz` (Kubernetes convention)
 
 Config fields, defaults, and descriptions are defined once in the proto file.
 Run `mise run generate` after editing the proto to regenerate the Go code.

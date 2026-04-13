@@ -28,9 +28,9 @@ func main() {
 
 	// Health endpoints on the root mux, structurally outside app middleware.
 	root := http.NewServeMux()
-	root.Handle("/healthz/startup", health.StartupHandler())
-	root.Handle("/healthz/live", health.LivenessHandler())
-	root.Handle("/healthz/ready", health.ReadinessHandler())
+	root.Handle(runtimehealth.DefaultStartupPath, health.StartupHandler())
+	root.Handle(runtimehealth.DefaultLivenessPath, health.LivenessHandler())
+	root.Handle(runtimehealth.DefaultReadinessPath, health.ReadinessHandler())
 
 	// App router — future middleware (CORS, recovery, etc.) mounts here.
 	app := chi.NewRouter()

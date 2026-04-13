@@ -123,6 +123,22 @@ func TestReadinessAfterSetNotReady(t *testing.T) {
 	expectStatus(t, rec, "shutting_down")
 }
 
+func TestReadinessNilFnDoesNotPanic(t *testing.T) {
+	t.Parallel()
+	c := runtimehealth.New(
+		runtimehealth.Check{Name: "broken", Fn: nil},
+	)
+	c.MarkStarted()
+
+	rec := get(t, c.ReadinessHandler())
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	expectStatus(t, rec, "ready")
+	expectCheck(t, rec, "broken", "ok")
+}
+
 func TestHandlerRejectsPost(t *testing.T) {
 	t.Parallel()
 	c := runtimehealth.New()

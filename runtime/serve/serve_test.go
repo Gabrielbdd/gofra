@@ -262,6 +262,86 @@ func TestNilOnShutdownIsSafe(t *testing.T) {
 	}
 }
 
+func TestShutdownTimeoutForcesClose(t *testing.T) {
+	t.Parallel()
+	h := &spyHealth{}
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Handler that never completes — simulates a stuck request.
+	stuck := make(chan struct{})
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-stuck // block forever
+	})
+
+	addr := freeAddr(t)
+	done := make(chan error, 1)
+	go func() {
+		done <- runtimeserve.Serve(ctx, runtimeserve.Config{
+			Handler:             handler,
+			Addr:                addr,
+			Health:              h,
+			ReadinessDrainDelay: 1 * time.Millisecond,
+			ShutdownTimeout:     200 * time.Millisecond,
+		})
+	}()
+
+	waitForHealth(t, h, 2*time.Second)
+
+	// Start a request that will never finish.
+	go http.Get(fmt.Sprintf("http://%s/stuck", addr)) //nolint:errcheck
+
+	// Give the request time to reach the handler.
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	// Serve must return despite the stuck request, because srv.Close()
+	// force-closes connections after ShutdownTimeout expires.
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Serve() error = %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Serve() hung — force close did not fire after ShutdownTimeout")
+	}
+	close(stuck) // unblock the goroutine for cleanup
+}
+
+func TestOnShutdownTimeoutEnforced(t *testing.T) {
+	t.Parallel()
+	h := &spyHealth{}
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan error, 1)
+	go func() {
+		done <- runtimeserve.Serve(ctx, runtimeserve.Config{
+			Handler:                 http.NotFoundHandler(),
+			Addr:                    freeAddr(t),
+			Health:                  h,
+			ReadinessDrainDelay:     1 * time.Millisecond,
+			ResourceShutdownTimeout: 200 * time.Millisecond,
+			OnShutdown: func(ctx context.Context) error {
+				// Ignore context and block — the timeout enforcement should
+				// make Serve return anyway.
+				time.Sleep(10 * time.Second)
+				return nil
+			},
+		})
+	}()
+
+	waitForHealth(t, h, 2*time.Second)
+	cancel()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Serve() error = %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Serve() hung — OnShutdown timeout was not enforced")
+	}
+}
+
 func TestDefaultsApplied(t *testing.T) {
 	t.Parallel()
 

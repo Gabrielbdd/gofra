@@ -82,14 +82,15 @@ Source doc: [11-health-checks.md](11-health-checks.md)
 
 Source doc: [09-errors.md](09-errors.md)
 
-- [ ] `runtime/errors` — Connect error code helpers
-  - [ ] `gofra.NotFound(resource, identifier)` — CodeNotFound + ResourceInfo
-  - [ ] `gofra.AlreadyExists(resource, identifier)` — CodeAlreadyExists
-  - [ ] `gofra.InvalidArgument(violations map[string]string)` — CodeInvalidArgument + BadRequest FieldViolations
-  - [ ] `gofra.PermissionDenied(msg)` — CodePermissionDenied
-  - [ ] `gofra.Aborted(msg)` — CodeAborted
-  - [ ] `gofra.Internal(err)` — CodeInternal (log original, send generic)
-  - [ ] Panic recovery middleware (returns Connect JSON, not plain text)
+- [x] `runtime/errors` — Connect error code helpers
+  - [x] `runtimeerrors.NotFound(resource, identifier)` — CodeNotFound + ResourceInfo
+  - [x] `runtimeerrors.AlreadyExists(resource, identifier)` — CodeAlreadyExists
+  - [x] `runtimeerrors.InvalidArgument(violations ...FieldViolation)` — CodeInvalidArgument + BadRequest FieldViolations
+  - [x] `runtimeerrors.PermissionDenied(msg)` — CodePermissionDenied
+  - [x] `runtimeerrors.Aborted(msg)` — CodeAborted
+  - [x] `runtimeerrors.FailedPrecondition(msg)` — CodeFailedPrecondition
+  - [x] `runtimeerrors.Internal(ctx, err)` — CodeInternal (log original, send generic)
+  - [x] `runtimeerrors.RecoverHandler` for `connect.WithRecover` (protocol-correct panic recovery)
 
 ### 1.4 Database
 

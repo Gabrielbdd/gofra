@@ -61,14 +61,25 @@ The framework provides helper functions that produce consistent errors with
 proper details. Handlers call these instead of constructing errors manually.
 
 ```go
-// gofra/errors.go
-package gofra
+// runtime/errors/errors.go
+package runtimeerrors
 
 import (
+    "context"
     "fmt"
+    "log/slog"
+
     "connectrpc.com/connect"
     "google.golang.org/genproto/googleapis/rpc/errdetails"
 )
+
+// FieldViolation describes a single field-level validation failure.
+// Using a struct instead of map[string]string preserves order and allows
+// multiple violations on the same field.
+type FieldViolation struct {
+    Field       string
+    Description string
+}
 
 // NotFound returns a CodeNotFound error with resource information.
 func NotFound(resource, identifier string) *connect.Error {
@@ -92,13 +103,15 @@ func AlreadyExists(resource, identifier string) *connect.Error {
 }
 
 // InvalidArgument returns a CodeInvalidArgument error with field violations.
-func InvalidArgument(violations map[string]string) *connect.Error {
+// Accepts a variadic list of FieldViolation structs so callers can express
+// multiple violations per field and control ordering.
+func InvalidArgument(violations ...FieldViolation) *connect.Error {
     err := connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("validation failed"))
     br := &errdetails.BadRequest{}
-    for field, description := range violations {
+    for _, v := range violations {
         br.FieldViolations = append(br.FieldViolations, &errdetails.BadRequest_FieldViolation{
-            Field:       field,
-            Description: description,
+            Field:       v.Field,
+            Description: v.Description,
         })
     }
     detail, _ := connect.NewErrorDetail(br)
@@ -116,10 +129,17 @@ func Aborted(msg string) *connect.Error {
     return connect.NewError(connect.CodeAborted, fmt.Errorf(msg))
 }
 
+// FailedPrecondition returns a CodeFailedPrecondition error for operations
+// rejected because the system is not in the required state.
+func FailedPrecondition(msg string) *connect.Error {
+    return connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf(msg))
+}
+
 // Internal wraps an unexpected error as CodeInternal.
-// The original error is logged but NOT sent to the client.
-func Internal(err error) *connect.Error {
-    slog.Error("internal error", "err", err)
+// The original error is logged via slog.ErrorContext but NOT sent to
+// the client. Callers must not log the same error again.
+func Internal(ctx context.Context, err error) *connect.Error {
+    slog.ErrorContext(ctx, "internal error", "error", err)
     return connect.NewError(connect.CodeInternal, fmt.Errorf("internal error"))
 }
 ```
@@ -132,7 +152,10 @@ every NotFound error has a `ResourceInfo` detail, every validation error has
 **Reason `Internal()` logs but doesn't expose the original error**: Stack
 traces and internal messages are security-sensitive. The client gets
 "internal error". The server log gets the full error with trace_id for
-correlation.
+correlation. `Internal()` accepts a `context.Context` so that
+`slog.ErrorContext` can extract trace_id/span_id when the observability
+package is wired in. Callers must not log the same error again — the
+helper handles logging exactly once.
 
 ### Handler Usage
 
@@ -145,9 +168,9 @@ func (s *PostsService) GetPost(
     post, err := s.Queries.GetPost(ctx, sqlc.GetPostParams{Slug: req.Msg.Slug})
     if err != nil {
         if errors.Is(err, pgx.ErrNoRows) {
-            return nil, gofra.NotFound("post", req.Msg.Slug)
+            return nil, runtimeerrors.NotFound("post", req.Msg.Slug)
         }
-        return nil, gofra.Internal(err)
+        return nil, runtimeerrors.Internal(ctx, err)
     }
 
     return connect.NewResponse(postRowToProto(post)), nil
@@ -165,9 +188,9 @@ func (s *PostsService) CreatePost(
     })
     if err != nil {
         if isUniqueViolation(err, "posts_slug_key") {
-            return nil, gofra.AlreadyExists("post", slugify(req.Msg.Title))
+            return nil, runtimeerrors.AlreadyExists("post", slugify(req.Msg.Title))
         }
-        return nil, gofra.Internal(err)
+        return nil, runtimeerrors.Internal(ctx, err)
     }
 
     return connect.NewResponse(postToProto(post)), nil
@@ -176,19 +199,28 @@ func (s *PostsService) CreatePost(
 
 ### Validation Errors from protovalidate
 
-The `protovalidate` Connect interceptor handles validation errors from
+The `connectrpc.com/validate` interceptor handles validation errors from
 `buf/validate` annotations automatically. When validation fails, it
-returns `CodeInvalidArgument` with `BadRequest` field violations. No
-handler code needed for proto-level validation.
+returns `CodeInvalidArgument` with a **protovalidate `Violations`
+detail** (not a `google.rpc.BadRequest`). No handler code needed for
+proto-level validation.
+
+**Note**: The protovalidate detail type differs from the `BadRequest`
+detail that the framework's `InvalidArgument()` helper produces. The
+frontend must handle both detail types, or the framework can provide a
+validation-normalizing interceptor that converts protovalidate
+`Violations` into `BadRequest` field violations for a uniform frontend
+contract. This normalizer is deferred until protovalidate is wired into
+the starter.
 
 For application-level validation (business rules not expressible in proto
-annotations), handlers use `gofra.InvalidArgument()`:
+annotations), handlers use `runtimeerrors.InvalidArgument()`:
 
 ```go
 if post.Status == "published" && post.Body == "" {
-    return nil, gofra.InvalidArgument(map[string]string{
-        "body": "published posts must have a body",
-    })
+    return nil, runtimeerrors.InvalidArgument(
+        runtimeerrors.FieldViolation{Field: "body", Description: "published posts must have a body"},
+    )
 }
 ```
 
@@ -464,40 +496,46 @@ export const transport = createConnectTransport({
 
 ## Panic Recovery
 
-chi's `middleware.Recoverer` catches panics in HTTP handlers. But Connect
-handlers are called within chi — so a panic in a Connect handler is caught
-by chi's recovery middleware. The framework wraps the recovered panic into
-a `CodeInternal` error:
+Connect provides a built-in `WithRecover` handler option that catches
+panics inside RPC handlers. The framework provides a `RecoverHandler`
+function that plugs into this option:
 
 ```go
-// gofra/recovery.go
-func RecoveryMiddleware(next http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        defer func() {
-            if rec := recover(); rec != nil {
-                stack := debug.Stack()
-                slog.ErrorContext(r.Context(), "panic recovered",
-                    "panic", rec,
-                    "stack", string(stack),
-                )
-                // Return a Connect-compatible error response
-                w.Header().Set("Content-Type", "application/json")
-                w.WriteHeader(http.StatusInternalServerError)
-                json.NewEncoder(w).Encode(map[string]any{
-                    "code":    "internal",
-                    "message": "internal error",
-                })
-            }
-        }()
-        next.ServeHTTP(w, r)
-    })
+// runtime/errors/recover.go
+package runtimeerrors
+
+// RecoverHandler is a connect.WithRecover callback that logs the panic
+// and returns a sanitized CodeInternal error. It does not re-panic
+// http.ErrAbortHandler (standard library semantics are preserved by
+// Connect's recovery machinery).
+func RecoverHandler(ctx context.Context, spec connect.Spec, header http.Header, r any) error {
+    slog.ErrorContext(ctx, "panic recovered",
+        "panic", r,
+        "stack", string(debug.Stack()),
+        "procedure", spec.Procedure,
+    )
+    return connect.NewError(connect.CodeInternal, fmt.Errorf("internal error"))
 }
 ```
 
-**Reason for custom recovery instead of chi's**: chi's recovery returns a
-plain text response. Connect clients expect a JSON (or binary) error with
-a `code` field. The custom recovery produces a response the SPA can parse
-as a `ConnectError`.
+Wire it when creating Connect handlers:
+
+```go
+mux.Handle(postsv1connect.NewPostsServiceHandler(
+    &PostsService{},
+    connect.WithRecover(runtimeerrors.RecoverHandler),
+))
+```
+
+**Reason for `connect.WithRecover` instead of HTTP middleware**:
+`WithRecover` produces a proper Connect error response that is correct
+across all three Connect wire protocols (Connect, gRPC, gRPC-Web). A
+hand-rolled HTTP middleware writing raw JSON would only work for the
+Connect protocol and would break gRPC and gRPC-Web clients.
+
+For non-RPC HTTP routes (health checks, config endpoint, static files),
+panics are less likely and chi's `middleware.Recoverer` is sufficient
+since those routes always serve plain HTTP responses.
 
 ---
 
@@ -527,11 +565,13 @@ is normal. Logging it at Info or higher creates noise.
 
 ## Error Handling Conventions Summary
 
-1. **Always use the gofra error helpers** (`gofra.NotFound`, `gofra.Internal`,
-   `gofra.InvalidArgument`) — they produce consistent errors with proper details.
+1. **Always use the `runtimeerrors` helpers** (`runtimeerrors.NotFound`,
+   `runtimeerrors.Internal`, `runtimeerrors.InvalidArgument`) — they produce
+   consistent errors with proper details.
 
-2. **Never send internal error messages to clients.** `gofra.Internal(err)`
-   logs the real error and returns "internal error" to the client.
+2. **Never send internal error messages to clients.**
+   `runtimeerrors.Internal(ctx, err)` logs the real error and returns
+   "internal error" to the client. Callers must not log the same error again.
 
 3. **In Restate handlers, decide: terminal or retryable.** Ask "will retrying
    fix this?" If yes, return the error (Restate retries). If no, return
@@ -548,7 +588,8 @@ is normal. Logging it at Info or higher creates noise.
    redirects to login. `Unavailable` shows a retry banner. Individual
    component error handling is for business-specific errors only.
 
-7. **Panic recovery returns Connect-compatible JSON**, not plain text.
+7. **Panic recovery uses `connect.WithRecover`**, which produces correct
+   responses for all Connect wire protocols (Connect, gRPC, gRPC-Web).
 
 ---
 
@@ -557,12 +598,14 @@ is normal. Logging it at Info or higher creates noise.
 | # | Decision | Rationale |
 |---|----------|-----------|
 | 96 | Connect error codes only, no custom codes | Standard set. Frontend handles generically. Same as gRPC and AIP-193. |
-| 97 | `gofra.NotFound()`, `gofra.Internal()` helpers | Enforce consistent error construction with proper details. |
-| 98 | `gofra.Internal()` logs but hides original error | Security. Stack traces and internal messages don't reach clients. |
-| 99 | `BadRequest` with `FieldViolation` for validation | Google's standard error detail type. Typed in both Go and TypeScript. Enables inline field errors in forms. |
+| 97 | `runtimeerrors.NotFound()`, `runtimeerrors.Internal()` helpers | Enforce consistent error construction with proper details. Package naming follows `runtime*` convention. |
+| 98 | `Internal(ctx, err)` logs but hides original error | Security. Stack traces and internal messages don't reach clients. Accepts context for trace_id correlation. Callers must not double-log. |
+| 99 | `BadRequest` with `FieldViolation` for app validation; protovalidate uses its own `Violations` detail | Google's standard type for app-level validation. Protovalidate's native type differs — normalize later or handle both in frontend. |
 | 100 | Restate: terminal vs. retryable decision framework | "Will retrying fix this?" is the only question. Terminal for logic errors, retryable for transient failures. |
 | 101 | No custom "failed jobs" dashboard | Restate UI + admin API + OTEL traces cover this. Don't rebuild what exists. |
 | 102 | Generate `google/rpc/error_details.proto` for frontend | Enables `err.findDetails(BadRequestSchema)` for typed error detail extraction in TypeScript. |
 | 103 | Transport interceptor for global error handling | Auth expiry, server unavailable. Handled once, not in every component. |
-| 104 | Custom panic recovery returning Connect JSON | chi's default returns plain text. Connect clients expect JSON with `code` field. |
+| 104 | `connect.WithRecover` for RPC panic recovery | Produces correct responses for Connect, gRPC, and gRPC-Web protocols. HTTP middleware only needed for non-RPC routes. |
+| 106 | `InvalidArgument` takes `...FieldViolation` not `map[string]string` | Preserves field order, allows multiple violations per field. Matches Rails/Laravel/Phoenix DX. |
+| 107 | `FailedPrecondition` helper included in first cut | Listed in error code table, handlers need it immediately (e.g., publish draft without body). |
 | 105 | Warn for validation errors, Debug for NotFound | Validation spikes may indicate bugs/attacks. NotFound is normal navigation. |

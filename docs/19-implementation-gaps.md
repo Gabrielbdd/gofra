@@ -92,6 +92,8 @@ Source doc: [09-errors.md](09-errors.md)
   - [x] `runtimeerrors.Internal(ctx, err)` — CodeInternal (log original, send generic)
   - [x] `runtimeerrors.RecoverHandler` for `connect.WithRecover` (protocol-correct panic recovery)
 
+**Completed** 2026-04-13, commit `fbbce04` (feat: add runtime/errors package with Connect error helpers).
+
 ### 1.4 Database
 
 Source doc: [05-database.md](05-database.md)

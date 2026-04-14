@@ -280,8 +280,9 @@ func main() {
     mux.Get("/healthz/live", health.LivenessHandler())
     mux.Get("/healthz/ready", health.ReadinessHandler())
     mux.Use(gofra.CORSMiddleware(cfg.CORS))
-    mux.Use(gofra.RecoveryMiddleware)
-    // ... mount Connect handlers, SPA fallback ...
+    // Panic recovery for Connect handlers is per-handler via connect.WithRecover,
+    // not global chi middleware — see docs/09-errors.md for details.
+    // ... mount Connect handlers with connect.WithRecover(runtimeerrors.RecoverHandler), SPA fallback ...
 
     // Restate setup (deferred — starts inside Serve)
     restateSetup := func() (*server.Restate, error) {

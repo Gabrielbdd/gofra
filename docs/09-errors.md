@@ -606,6 +606,6 @@ is normal. Logging it at Info or higher creates noise.
 | 102 | Generate `google/rpc/error_details.proto` for frontend | Enables `err.findDetails(BadRequestSchema)` for typed error detail extraction in TypeScript. |
 | 103 | Transport interceptor for global error handling | Auth expiry, server unavailable. Handled once, not in every component. |
 | 104 | `connect.WithRecover` for RPC panic recovery | Produces correct responses for Connect, gRPC, and gRPC-Web protocols. HTTP middleware only needed for non-RPC routes. |
-| 106 | `InvalidArgument` takes `...FieldViolation` not `map[string]string` | Preserves field order, allows multiple violations per field. Matches Rails/Laravel/Phoenix DX. |
-| 107 | `FailedPrecondition` helper included in first cut | Listed in error code table, handlers need it immediately (e.g., publish draft without body). |
 | 105 | Warn for validation errors, Debug for NotFound | Validation spikes may indicate bugs/attacks. NotFound is normal navigation. |
+| 124 | `InvalidArgument` takes `...FieldViolation` not `map[string]string` | Preserves field order, allows multiple violations per field. Matches Rails/Laravel/Phoenix DX. |
+| 125 | `FailedPrecondition` helper included in first cut | Listed in error code table, handlers need it immediately (e.g., publish draft without body). |

@@ -157,14 +157,14 @@
 | # | Decision | Rationale | Doc |
 |---|----------|-----------|-----|
 | 96 | Connect error codes only, no custom codes | Standard set. Same as gRPC and AIP-193. | [09](09-errors.md) |
-| 97 | `gofra.NotFound()`, `gofra.Internal()` helpers | Consistent construction with proper error details. | [09](09-errors.md) |
-| 98 | `gofra.Internal()` logs but hides original error | Security. No stack traces reaching clients. | [09](09-errors.md) |
-| 99 | `BadRequest` with `FieldViolation` for validation | Google's standard type. Typed in Go and TypeScript. | [09](09-errors.md) |
+| 97 | `runtimeerrors.NotFound()`, `runtimeerrors.Internal()` helpers | Consistent construction with proper error details. Package naming follows `runtime*` convention. | [09](09-errors.md) |
+| 98 | `Internal(ctx, err)` logs but hides original error | Security. No stack traces reaching clients. Accepts context for trace_id correlation. Callers must not double-log. | [09](09-errors.md) |
+| 99 | `BadRequest` with `FieldViolation` for app validation; protovalidate uses its own `Violations` detail | Google's standard type for app-level validation. Protovalidate's native type differs — normalize later or handle both in frontend. | [09](09-errors.md) |
 | 100 | Restate: terminal vs retryable framework | "Will retrying fix this?" Terminal for logic errors. | [09](09-errors.md) |
 | 101 | No custom failed-jobs dashboard | Restate UI + admin API + OTEL traces cover this. | [09](09-errors.md) |
 | 102 | Generate error_details.proto for frontend | Enables `findDetails(BadRequestSchema)` in TypeScript. | [09](09-errors.md) |
 | 103 | Transport interceptor for global error handling | Auth expiry, server unavailable. Handled once. | [09](09-errors.md) |
-| 104 | Custom panic recovery returning Connect JSON | chi's default returns plain text. Connect needs JSON. | [09](09-errors.md) |
+| 104 | `connect.WithRecover` for RPC panic recovery | Correct for Connect, gRPC, and gRPC-Web protocols. HTTP middleware only for non-RPC routes. | [09](09-errors.md) |
 | 105 | Warn for validation, Debug for NotFound | Spikes indicate bugs. NotFound is normal navigation. | [09](09-errors.md) |
 
 ## Docker Compose (Decisions #106–114)
@@ -194,6 +194,13 @@
 | 121 | 25-second budget within 30-second K8s grace | 5-second safety margin before SIGKILL. | [12](12-graceful-shutdown.md) |
 | 122 | Second signal force-kills | `stop()` restores default. Ctrl+C twice = immediate exit. | [12](12-graceful-shutdown.md) |
 | 123 | `OnShutdown` callback for resource cleanup | OTEL flush + DB close. Framework provides hook, main.go provides logic. | [12](12-graceful-shutdown.md) |
+
+## Error Handling Addendum (Decisions #124–125)
+
+| # | Decision | Rationale | Doc |
+|---|----------|-----------|-----|
+| 124 | `InvalidArgument` takes `...FieldViolation` not `map[string]string` | Preserves field order, allows multiple violations per field. Matches Rails/Laravel/Phoenix DX. | [09](09-errors.md) |
+| 125 | `FailedPrecondition` helper included in first cut | Listed in error code table, handlers need it immediately (e.g., publish draft without body). | [09](09-errors.md) |
 
 ## Testing (Decisions #133)
 

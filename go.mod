@@ -1,9 +1,11 @@
 module databit.com.br/gofra
 
-go 1.25.0
+go 1.23.0
+
+toolchain go1.23.5
 
 require (
-	connectrpc.com/connect v1.19.1
+	connectrpc.com/connect v1.18.1
 	github.com/bufbuild/protocompile v0.14.1
 	github.com/knadh/koanf/parsers/yaml v1.1.0
 	github.com/knadh/koanf/providers/env v1.1.0
@@ -12,7 +14,7 @@ require (
 	github.com/knadh/koanf/providers/structs v1.0.0
 	github.com/knadh/koanf/v2 v2.3.4
 	github.com/spf13/pflag v1.0.10
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260413220744-3e5c5a5a0756
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250825161204-c5933d9347a5
 	google.golang.org/protobuf v1.36.11
 )
 

@@ -14,6 +14,18 @@ message Config {
 
   // Database configuration.
   DatabaseConfig database = 3;
+
+  // Authentication configuration for JWT validation.
+  AuthConfig auth = 4;
+}
+
+// AuthConfig holds server-side authentication settings for JWT validation.
+message AuthConfig {
+  // ZITADEL issuer URL used for OIDC discovery and JWKS fetching.
+  string issuer = 1 [(gofra.config.v1.field).default_value.string_value = "http://localhost:8080"];
+
+  // Expected audience claim in JWT access tokens (typically the API project ID).
+  string audience = 2;
 }
 
 // DatabaseConfig holds PostgreSQL connection and pool settings.

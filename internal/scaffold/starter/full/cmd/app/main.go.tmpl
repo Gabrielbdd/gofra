@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	runtimeauth "__GOFRA_FRAMEWORK_MODULE__/runtime/auth"
 	runtimeconfig "__GOFRA_FRAMEWORK_MODULE__/runtime/config"
 	runtimedatabase "__GOFRA_FRAMEWORK_MODULE__/runtime/database"
 	runtimehealth "__GOFRA_FRAMEWORK_MODULE__/runtime/health"
@@ -56,6 +57,19 @@ func main() {
 		}
 	}
 
+	// --- Auth ---------------------------------------------------------------
+
+	verifier, err := runtimeauth.NewJWTVerifier(ctx, cfg.Auth.Issuer, cfg.Auth.Audience)
+	if err != nil {
+		slog.Error("auth verifier setup failed", "error", err)
+		os.Exit(1)
+	}
+
+	isPublic := runtimeauth.PublicProcedures(
+		// Add public RPC procedures here, e.g.:
+		// "/myapp.v1.PublicService/GetInfo",
+	)
+
 	// --- Health & Routing ---------------------------------------------------
 
 	health := runtimehealth.New(runtimehealth.Check{
@@ -69,8 +83,9 @@ func main() {
 	root.Handle(runtimehealth.DefaultLivenessPath, health.LivenessHandler())
 	root.Handle(runtimehealth.DefaultReadinessPath, health.ReadinessHandler())
 
-	// App router — future middleware (CORS, recovery, etc.) mounts here.
+	// App router — auth middleware protects Connect RPC procedures.
 	app := chi.NewRouter()
+	app.Use(runtimeauth.NewMiddleware(verifier, isPublic))
 	app.Handle(runtimeconfig.DefaultPath, config.PublicConfigHandler(cfg))
 	app.Handle("/*", web.Handler())
 

@@ -5,7 +5,8 @@ authentication and authorization runtime packages. It exists so maintainers can
 refer back to one concrete proposal later without treating the API as finalized
 or ready to ship in v1 today.
 
-Status: deferred. This is a design note, not a committed public contract.
+Status: `runtime/auth` (authn) implemented 2026-04-14. `runtime/authz` remains
+deferred. This is a design note, not a committed public contract.
 
 Related design docs:
 

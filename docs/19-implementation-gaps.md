@@ -113,17 +113,16 @@ Source doc: [05-database.md](05-database.md)
 
 Source doc: [08-auth.md](08-auth.md)
 
-Implementation note: before building this slice, review the deferred proposal
-in [docs/project/auth-authz-mvp-proposal.md](project/auth-authz-mvp-proposal.md).
-It captures the currently preferred runtime package split, persistence model,
-and scope boundaries for a minimal shippable auth/authz API.
+Implementation note: review the deferred proposal in
+[docs/project/auth-authz-mvp-proposal.md](project/auth-authz-mvp-proposal.md)
+for the broader auth/authz package split and scope boundaries.
 
-- [ ] `runtime/auth` — JWT validation and context
-  - [ ] `auth.NewAccessTokenVerifier(issuerURL, audience)` — JWKS-backed verifier
-  - [ ] `auth.WithUser(ctx, user)` / `auth.UserFromContext(ctx)` — context accessors
-  - [ ] `User` struct: ID, Email, Roles, OrgID
-  - [ ] Auth interceptor (extract Bearer, validate, set context)
-  - [ ] Public RPC allowlist (private-by-default)
+- [x] `runtime/auth` — JWT validation and context
+  - [x] `auth.NewJWTVerifier(ctx, issuerURL, audience)` — OIDC discovery + JWKS-backed verifier
+  - [x] `auth.WithUser(ctx, user)` / `auth.UserFromContext(ctx)` — context accessors
+  - [x] `User` struct (ID)
+  - [x] Auth HTTP middleware (extract Bearer, validate, set context)
+  - [x] Public RPC allowlist (private-by-default via `ProcedureMatcher`)
 - [ ] `runtime/authz` — permission enforcement
   - [ ] `authz.HasPermission(roles []string, perm Permission) bool`
   - [ ] Static `RolePermissions` map pattern
@@ -183,7 +182,8 @@ Source docs: [02-system-architecture.md](02-system-architecture.md),
 
 - [x] `cmd/app/main.go` uses chi router instead of raw `http.ServeMux`
 - [ ] chi `mux.Use(...)` middleware: CORS, request ID, panic recovery (HTTP-level concerns)
-- [ ] Connect `WithInterceptors(...)`: otelconnect, protovalidate, auth interceptor (RPC-level concerns — these receive typed proto requests, not raw HTTP)
+- [x] chi `mux.Use(...)` middleware: auth (JWT verification via `runtimeauth.NewMiddleware`)
+- [ ] Connect `WithInterceptors(...)`: otelconnect, protovalidate (RPC-level concerns — these receive typed proto requests, not raw HTTP)
 - [ ] Two listeners: `:3000` (HTTP/Connect) and `:9080` (Restate endpoint)
 - [x] Graceful shutdown via `runtimeserve.Serve()` instead of `http.ListenAndServe`
 - [x] DB pool initialization on startup via `runtimedatabase.Open`
@@ -196,14 +196,15 @@ Source docs: [02-system-architecture.md](02-system-architecture.md),
 
 Source doc: [15-docker-compose.md](15-docker-compose.md)
 
-- [ ] `docker-compose.yml`
-  - [ ] `postgres:17-alpine` — app DB + Zitadel DB, healthcheck, named volume
+- [x] `compose.yaml`
+  - [x] `postgres:18.3-alpine3.23` — app DB, healthcheck, named volume, shared memory limit
   - [ ] `restate:latest` — ingress (:8080), admin UI (:9070), `host.docker.internal`
   - [ ] `zitadel:latest` — `:8081`, depends on postgres, initial admin user
   - [ ] `jaeger:2` — profile `tracing`, ports 4317/4318/16686
   - [ ] Postgres init script for Zitadel database creation
-- [ ] `.env.example` — template with all required env vars
-  - [ ] `DATABASE_URL`
+- [x] `.env.example` — template for local Postgres and compose overrides
+  - [x] `GOFRA_POSTGRES_IMAGE`
+  - [x] `GOFRA_DB_HOST`, `GOFRA_DB_PORT`, `GOFRA_DB_USER`, `GOFRA_DB_PASSWORD`, `GOFRA_DB_NAME`, `GOFRA_DB_SSLMODE`
   - [ ] `RESTATE_INGRESS_URL`
   - [ ] `ZITADEL_ISSUER`, `ZITADEL_CLIENT_ID`, `ZITADEL_PROJECT_ID`
   - [ ] `OTEL_EXPORTER_OTLP_ENDPOINT`
@@ -270,11 +271,11 @@ Today only `generate` and `dev` exist. Missing:
 - [x] `gen:sql` — `sqlc generate`
 - [ ] `dev:api` — Go server with air hot reload + Restate registration
 - [ ] `dev:web` — Vite dev server
-- [ ] `infra` — `docker compose up -d`
-- [ ] `infra:stop` — `docker compose down`
-- [ ] `infra:reset` — `docker compose down -v`
+- [x] `infra` — start local Postgres with Compose and wait until ready
+- [x] `infra:stop` — stop local infrastructure
+- [x] `infra:reset` — stop local infrastructure and remove volumes
 - [ ] `infra:tracing` — `docker compose --profile tracing up -d`
-- [ ] `infra:logs` — `docker compose logs -f`
+- [x] `infra:logs` — tail Postgres logs from Compose
 - [ ] `build` — Go binary + frontend assets
 - [ ] `build:web` — frontend assets only
 - [ ] `test` — `go test ./...`
@@ -296,7 +297,7 @@ matching the field names and types in that doc exactly:
 
 - [x] `database` section (see `DatabaseConfig` in 06-configuration.md)
 - [ ] `restate` section (see `RestateConfig` in 06-configuration.md)
-- [ ] `auth` section (see `AuthConfig` in 06-configuration.md)
+- [x] `auth` section (see `AuthConfig` in 06-configuration.md)
 - [ ] `observability` section (see `OTELConfig` in 06-configuration.md)
 
 ---

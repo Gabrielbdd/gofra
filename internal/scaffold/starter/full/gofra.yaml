@@ -7,3 +7,7 @@ app:
 database:
   dsn: "postgres://postgres:postgres@localhost:5432/__GOFRA_APP_NAME__?sslmode=disable"
   auto_migrate: true
+
+auth:
+  issuer: "http://localhost:8080"
+  audience: "__GOFRA_APP_NAME__-api"

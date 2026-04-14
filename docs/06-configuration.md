@@ -94,11 +94,13 @@ func (a AppConfig) IsProduction() bool { return a.Env == "production" }
 func (a AppConfig) IsDevelopment() bool { return a.Env == "development" }
 
 type DatabaseConfig struct {
-    DSN          string        `koanf:"dsn"`           // Postgres connection string
-    MaxOpenConns int           `koanf:"max_open_conns"` // Max open connections
-    MaxIdleConns int           `koanf:"max_idle_conns"` // Max idle connections
-    MaxLifetime  time.Duration `koanf:"max_lifetime"`   // Connection max lifetime
-    AutoMigrate  bool          `koanf:"auto_migrate"`   // Run goose up on startup
+    DSN               string        `koanf:"dsn"`                 // Postgres connection string (pgx URL or keyword/value)
+    MaxConns          int32         `koanf:"max_conns"`           // Pool max open connections (pgxpool default: max(4, numCPU))
+    MinConns          int32         `koanf:"min_conns"`           // Pool min idle connections kept open (pgxpool default: 0)
+    MaxConnLifetime   time.Duration `koanf:"max_conn_lifetime"`   // Max time a connection can be reused (pgxpool default: 1h)
+    MaxConnIdleTime   time.Duration `koanf:"max_conn_idle_time"`  // Max time a connection can sit idle (pgxpool default: 30m)
+    HealthCheckPeriod time.Duration `koanf:"health_check_period"` // Interval between pool health checks (pgxpool default: 1m)
+    AutoMigrate       bool          `koanf:"auto_migrate"`        // Run goose up on startup (opt-in)
 }
 
 type RestateConfig struct {
@@ -182,9 +184,11 @@ app:
 
 database:
   dsn: "postgres://localhost/myapp_dev?sslmode=disable"
-  max_open_conns: 25
-  max_idle_conns: 5
-  max_lifetime: 5m
+  max_conns: 25
+  min_conns: 5
+  max_conn_lifetime: 1h
+  max_conn_idle_time: 30m
+  health_check_period: 1m
   auto_migrate: true
 
 restate:
@@ -409,11 +413,12 @@ func main() {
         os.Exit(1)
     }
 
-    db, err := gofra.OpenDB(cfg.Database)
+    pool, err := runtimedatabase.Open(ctx, cfg.Database)
     // cfg.Database is a typed DatabaseConfig — not a string lookup
+    defer pool.Close()
 
     if cfg.Database.AutoMigrate {
-        runMigrations(db)
+        runtimedatabase.Migrate(ctx, pool, db.Migrations)
     }
 
     // ...

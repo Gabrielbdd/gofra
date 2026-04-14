@@ -354,49 +354,63 @@ making it smaller and faster.
 ## Startup: Optional Auto-Migration
 
 ```go
+// db/embed.go — app-owned package adjacent to the migrations directory
+package db
+
+import "embed"
+
+//go:embed migrations/*.sql
+var Migrations embed.FS
+```
+
+```go
 // cmd/app/main.go
 func main() {
+    ctx := context.Background()
     cfg := config.Load()
 
-    db, err := pgx.New(cfg.Database.DSN)
+    pool, err := runtimedatabase.Open(ctx, cfg.Database)
     if err != nil {
         slog.Error("database connection failed", "err", err)
         os.Exit(1)
     }
-    defer db.Close()
+    defer pool.Close()
 
     // Optional: run migrations on startup
     if cfg.Database.AutoMigrate {
-        if err := runMigrations(db); err != nil {
+        results, err := runtimedatabase.Migrate(ctx, pool, db.Migrations)
+        if err != nil {
             slog.Error("migration failed", "err", err)
             os.Exit(1)
+        }
+        for _, r := range results {
+            slog.Info("migration applied", "version", r.Source.Version, "duration", r.Duration)
         }
     }
 
     // ... rest of application setup
 }
-
-//go:embed db/migrations/*.sql
-var migrations embed.FS
-
-func runMigrations(db *sql.DB) error {
-    goose.SetBaseFS(migrations)
-    if err := goose.SetDialect("postgres"); err != nil {
-        return fmt.Errorf("goose dialect: %w", err)
-    }
-    if err := goose.Up(db, "db/migrations"); err != nil {
-        return fmt.Errorf("goose up: %w", err)
-    }
-    return nil
-}
 ```
+
+The `//go:embed` directive lives in `db/embed.go`, not `cmd/app/main.go`,
+because embed paths are relative to the source file's package directory.
+Placing the directive next to the `migrations/` directory keeps the path
+simple: `migrations/*.sql`.
+
+`runtimedatabase.Open` creates a `*pgxpool.Pool`, applies config overrides,
+and pings the database for fail-fast startup. `runtimedatabase.Migrate` uses
+the goose Provider API with Postgres advisory locking for concurrent safety.
+Both functions are separate so that callers can compose them independently —
+some apps need the pool without migrations (e.g., workers), and migrations can
+also be run via a standalone CLI command.
 
 **Reason auto-migrate is opt-in, not default**: In production with multiple
 replicas, auto-migrating on startup causes races — 10 replicas all trying to
-run `CREATE TABLE` simultaneously. goose uses a lock table to serialize, but
-it can still cause startup delays and unexpected failures. The safe default
-is to run migrations as a separate step before deployment (`mise run migrate`).
-Auto-migrate is convenient for development and single-instance deployments.
+run `CREATE TABLE` simultaneously. `runtimedatabase.Migrate` uses goose's
+`WithSessionLocker` for Postgres advisory locks, which makes concurrent startup
+safe. However, the safe default is still to run migrations as a separate step
+before deployment (`mise run migrate`). Auto-migrate is convenient for
+development and single-instance deployments.
 
 ```yaml
 # gofra.yaml
@@ -406,7 +420,7 @@ database:
 ```
 
 **Reason migrations are embedded**: The production binary must be self-contained.
-`//go:embed db/migrations/*.sql` compiles the migration files into the binary.
+`//go:embed migrations/*.sql` compiles the migration files into the binary.
 Even with auto-migrate disabled, the binary carries its migrations — useful for
 running `./myapp migrate` as a standalone command without needing the source tree.
 

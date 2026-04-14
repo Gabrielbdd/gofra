@@ -98,10 +98,12 @@ Source doc: [09-errors.md](09-errors.md)
 
 Source doc: [05-database.md](05-database.md)
 
-- [ ] `runtime/database` — pgx pool management
-  - [ ] `gofra.OpenDB(cfg DatabaseConfig) (*pgxpool.Pool, error)`
-  - [ ] Auto-migrate on startup (opt-in via `database.auto_migrate`)
-  - [ ] Embedded migrations support (`//go:embed db/migrations/*.sql` + `goose.SetBaseFS`)
+- [ ] `runtime/database` — pgxpool management and goose migrations
+  - [ ] `Config` struct aligned with pgxpool native knobs (`MaxConns`, `MinConns`, `MaxConnLifetime`, `MaxConnIdleTime`, `HealthCheckPeriod`)
+  - [ ] `runtimedatabase.Open(ctx, Config) (*pgxpool.Pool, error)` — creates pool, applies config overrides, Ping for fail-fast
+  - [ ] `runtimedatabase.Migrate(ctx, *pgxpool.Pool, fs.FS, ...MigrateOption) ([]*goose.MigrationResult, error)` — goose Provider API with session locking
+  - [ ] `runtimedatabase.HealthCheck(*pgxpool.Pool) runtimehealth.CheckFunc` — readiness integration
+  - [ ] Tests (unit + integration)
 
 ### 1.5 Auth & Authorization
 

@@ -310,6 +310,11 @@ myapp/
 └── ...
 ```
 
+**Reason for zero-padded migration prefixes**: sqlc parses goose migration
+files in lexicographic order when `db/migrations/` is used as the schema
+source. Use `00001_...sql`, `00002_...sql`, not `1_...sql`, so sqlc sees the
+same schema order that goose applies.
+
 ---
 
 ## Migration Files

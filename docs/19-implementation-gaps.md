@@ -113,6 +113,11 @@ Source doc: [05-database.md](05-database.md)
 
 Source doc: [08-auth.md](08-auth.md)
 
+Implementation note: before building this slice, review the deferred proposal
+in [docs/project/auth-authz-mvp-proposal.md](project/auth-authz-mvp-proposal.md).
+It captures the currently preferred runtime package split, persistence model,
+and scope boundaries for a minimal shippable auth/authz API.
+
 - [ ] `runtime/auth` — JWT validation and context
   - [ ] `auth.NewAccessTokenVerifier(issuerURL, audience)` — JWKS-backed verifier
   - [ ] `auth.WithUser(ctx, user)` / `auth.UserFromContext(ctx)` — context accessors

@@ -19,6 +19,18 @@ user is allowed to perform a specific action on a specific resource. This
 is the line: **Zitadel answers "who is this person?" Gofra answers "can this
 person do this thing?"**
 
+## Deferred Implementation Note
+
+The high-level auth model in this document remains the intended framework
+direction, but the exact `runtime/auth` and `runtime/authz` APIs are still
+deferred while the implementation surface is narrowed.
+
+The current proposed MVP package split, persistence model, Laravel comparison,
+and "ship later" scope are captured in
+[docs/project/auth-authz-mvp-proposal.md](project/auth-authz-mvp-proposal.md).
+Use that note when resuming this slice; do not infer a finalized public API
+from the illustrative snippets below.
+
 ### V1 Client Auth Model
 
 Gofra v1 standardizes on one auth family for all human-operated clients:
@@ -311,6 +323,15 @@ locally using Zitadel's public keys (fetched once and cached via JWKS). No
 network call to Zitadel per request. This is fast and doesn't create a
 dependency on Zitadel availability for every API call.
 
+The deferred MVP proposal keeps this stateless JWT direction, but it narrows
+the implementation contract further:
+
+- the protected API application must issue JWT access tokens
+- the runtime package should expose a verifier interface so introspection can be
+  added later without breaking the package boundary
+- the preferred Connect integration point is auth middleware that can support
+  both unary and streaming RPCs
+
 ### Public RPCs vs Protected RPCs
 
 Gofra treats Connect RPCs as private by default. Public RPCs are an explicit
@@ -409,6 +430,10 @@ the permission set is small (10-50 permissions) and changes with code
 deployments, not at runtime. A static Go map is the simplest correct
 implementation. If runtime-configurable permissions are needed later, this
 can be moved to a database table without changing the checking interface.
+
+The deferred MVP proposal makes the package split explicit: generated apps own
+permission constants, role-permission maps, and policy structs, while
+`runtime/authz` stays helper-only and provides the reusable checking mechanics.
 
 ### Layer 3: Resource-Level Checks (in Handlers)
 

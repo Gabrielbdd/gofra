@@ -2,11 +2,14 @@ package runtimeauth
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 
-	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/zitadel/oidc/v3/pkg/client"
+	"github.com/zitadel/oidc/v3/pkg/client/rp"
+	"github.com/zitadel/oidc/v3/pkg/oidc"
+	"github.com/zitadel/oidc/v3/pkg/op"
 )
 
 // Verifier validates a raw bearer token and returns the authenticated [User].
@@ -31,7 +34,7 @@ func WithHTTPClient(client *http.Client) Option {
 }
 
 // WithClaimMapper overrides the default ZITADEL-aware claim extraction.
-// The mapper receives the raw JSON claims from the validated token and must
+// The mapper receives the validated [oidc.AccessTokenClaims] and must
 // return a [User].
 func WithClaimMapper(fn ClaimMapperFunc) Option {
 	return func(c *jwtVerifierConfig) {
@@ -40,9 +43,13 @@ func WithClaimMapper(fn ClaimMapperFunc) Option {
 }
 
 // NewJWTVerifier creates a [Verifier] that validates JWT access tokens using
-// OIDC discovery. It fetches the provider's metadata and JWKS on
+// OIDC discovery. It fetches the provider's metadata and JWKS endpoint on
 // construction (one-time network call). If discovery fails, an error is
 // returned — this provides fail-fast behaviour on startup.
+//
+// The verification path follows ZITADEL's recommended JWT resource-server
+// pattern: OIDC discovery → remote JWKS key set → [op.VerifyAccessToken]
+// with an explicit audience check.
 //
 // The audience parameter is the expected "aud" claim in the access token.
 // For ZITADEL this is the project ID of the API application.
@@ -61,45 +68,43 @@ func NewJWTVerifier(ctx context.Context, issuerURL, audience string, opts ...Opt
 		o(cfg)
 	}
 
+	httpClient := http.DefaultClient
 	if cfg.httpClient != nil {
-		ctx = oidc.ClientContext(ctx, cfg.httpClient)
+		httpClient = cfg.httpClient
 	}
 
-	provider, err := oidc.NewProvider(ctx, issuerURL)
+	discovery, err := client.Discover(ctx, issuerURL, httpClient)
 	if err != nil {
 		return nil, fmt.Errorf("runtimeauth: oidc discovery: %w", err)
 	}
 
-	// oidc.IDTokenVerifier is named for ID tokens, but its Verify method is a
-	// generic JWT validator: it checks signature, issuer, audience, and expiry.
-	// It does NOT enforce ID-token-specific claims (nonce, at_hash). Using it
-	// for JWT access tokens is the standard pattern across the Go ecosystem.
-	// ClientID is set to the expected audience of the access token.
-	verifier := provider.Verifier(&oidc.Config{
-		ClientID: audience,
-	})
+	keySet := rp.NewRemoteKeySet(httpClient, discovery.JwksURI)
+	verifier := op.NewAccessTokenVerifier(discovery.Issuer, keySet)
 
 	return &jwtVerifier{
 		verifier:    verifier,
+		audience:    audience,
 		claimMapper: cfg.claimMapper,
 	}, nil
 }
 
 type jwtVerifier struct {
-	verifier    *oidc.IDTokenVerifier
+	verifier    *op.AccessTokenVerifier
+	audience    string
 	claimMapper ClaimMapperFunc
 }
 
 func (v *jwtVerifier) Verify(ctx context.Context, rawToken string) (User, error) {
-	token, err := v.verifier.Verify(ctx, rawToken)
+	claims, err := op.VerifyAccessToken[*oidc.AccessTokenClaims](ctx, rawToken, v.verifier)
 	if err != nil {
 		return User{}, fmt.Errorf("runtimeauth: verify token: %w", err)
 	}
 
-	var raw json.RawMessage
-	if err := token.Claims(&raw); err != nil {
-		return User{}, fmt.Errorf("runtimeauth: extract claims: %w", err)
+	// op.VerifyAccessToken checks issuer, signature, and expiry but not
+	// audience. Check audience explicitly per ZITADEL's recommended pattern.
+	if !slices.Contains(claims.Audience, v.audience) {
+		return User{}, fmt.Errorf("runtimeauth: token audience %v does not contain %q", claims.Audience, v.audience)
 	}
 
-	return v.claimMapper(raw)
+	return v.claimMapper(claims)
 }

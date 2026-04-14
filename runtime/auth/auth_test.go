@@ -2,8 +2,9 @@ package runtimeauth
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
+
+	"github.com/zitadel/oidc/v3/pkg/oidc"
 )
 
 func TestWithUserAndUserFromContext(t *testing.T) {
@@ -29,15 +30,11 @@ func TestUserFromContext_Empty(t *testing.T) {
 // --- Claim extraction tests -----------------------------------------------
 
 func TestDefaultClaimMapper(t *testing.T) {
-	claims := json.RawMessage(`{
-		"sub": "user-456",
-		"email": "alice@example.com",
-		"urn:zitadel:iam:org:id": "org-abc",
-		"urn:zitadel:iam:org:project:789:roles": {
-			"admin": {"org-abc": "org-abc"},
-			"editor": {"org-abc": "org-abc"}
-		}
-	}`)
+	claims := &oidc.AccessTokenClaims{
+		TokenClaims: oidc.TokenClaims{
+			Subject: "user-456",
+		},
+	}
 
 	user, err := defaultClaimMapper(claims)
 	if err != nil {
@@ -49,17 +46,10 @@ func TestDefaultClaimMapper(t *testing.T) {
 }
 
 func TestDefaultClaimMapper_MissingSub(t *testing.T) {
-	claims := json.RawMessage(`{"email": "alice@example.com"}`)
+	claims := &oidc.AccessTokenClaims{}
 
 	_, err := defaultClaimMapper(claims)
 	if err == nil {
 		t.Fatal("expected error for missing sub claim")
-	}
-}
-
-func TestDefaultClaimMapper_InvalidJSON(t *testing.T) {
-	_, err := defaultClaimMapper(json.RawMessage(`not json`))
-	if err == nil {
-		t.Fatal("expected error for invalid JSON")
 	}
 }

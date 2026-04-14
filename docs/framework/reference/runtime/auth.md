@@ -45,11 +45,14 @@ Reports whether a Connect RPC procedure path should be accessible without
 authentication.
 
 ```go
-type ClaimMapperFunc func(claims json.RawMessage) (User, error)
+type ClaimMapperFunc func(claims *oidc.AccessTokenClaims) (User, error)
 ```
 
-Extracts a User from raw JWT claims. The default mapper handles ZITADEL's
-claim format.
+Extracts a User from validated access token claims. The `claims` parameter
+is a `*oidc.AccessTokenClaims` from `github.com/zitadel/oidc/v3/pkg/oidc`,
+which provides typed access to standard JWT fields (`Subject`, `Audience`,
+`Issuer`) and a `Claims map[string]any` for non-standard claims like
+ZITADEL role grants. The default mapper handles ZITADEL's claim format.
 
 ```go
 type Option func(*jwtVerifierConfig)
@@ -70,14 +73,19 @@ func NewJWTVerifier(
 ```
 
 Creates a Verifier that validates JWT access tokens using OIDC discovery.
+The verification path follows ZITADEL's recommended JWT resource-server
+pattern using `zitadel/oidc`'s access-token-specific verifier.
+
 The sequence is:
 
 1. Validate that `issuerURL` and `audience` are non-empty.
 2. Fetch the provider's OpenID Connect metadata from
    `<issuerURL>/.well-known/openid-configuration`.
-3. Locate the JWKS endpoint from the metadata.
-4. Return a verifier that validates token signature, issuer, audience, and
-   expiry against the discovered keys.
+3. Create a remote JWKS key set from the discovered endpoint.
+4. Build an `op.AccessTokenVerifier` that validates token signature, issuer,
+   and expiry.
+5. On each `Verify` call, also check that the token's `aud` claim contains
+   the expected audience.
 
 OIDC discovery is a one-time network call at construction. If discovery
 fails, an error is returned — this provides fail-fast behaviour on startup.
@@ -105,7 +113,7 @@ func WithClaimMapper(fn ClaimMapperFunc) Option
 ```
 
 Overrides the default ZITADEL-aware claim extraction. The mapper receives
-the raw JSON claims from the validated token and must return a User.
+the validated `*oidc.AccessTokenClaims` and must return a User.
 
 #### WithUser
 

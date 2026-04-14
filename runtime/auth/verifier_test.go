@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/zitadel/oidc/v3/pkg/oidc"
 )
 
 // TestNewJWTVerifier_MissingIssuer verifies that an empty issuer URL is
@@ -45,23 +45,20 @@ func TestNewJWTVerifier_InvalidIssuer(t *testing.T) {
 	}
 }
 
-// TestJWTVerifier_RoundTrip spins up a mock OIDC provider (discovery + JWKS)
-// and verifies the full flow: create verifier → sign a JWT → verify → extract
-// user.
-func TestJWTVerifier_RoundTrip(t *testing.T) {
-	// Generate a test RSA key pair.
-	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("generate key: %v", err)
-	}
+// mockOIDCServer starts an httptest.Server that serves OIDC discovery and JWKS
+// endpoints using the given RSA public key.
+type mockOIDCServer struct {
+	Server *httptest.Server
+	URL    string
+}
 
-	const keyID = "test-key-1"
+func newMockOIDCServer(t *testing.T, pubKey *rsa.PublicKey, keyID string) *mockOIDCServer {
+	t.Helper()
 
-	// Build the JWKS document.
 	jwks := jose.JSONWebKeySet{
 		Keys: []jose.JSONWebKey{
 			{
-				Key:       &privKey.PublicKey,
+				Key:       pubKey,
 				KeyID:     keyID,
 				Algorithm: string(jose.RS256),
 				Use:       "sig",
@@ -69,15 +66,14 @@ func TestJWTVerifier_RoundTrip(t *testing.T) {
 		},
 	}
 
-	// Serve mock OIDC discovery and JWKS endpoints.
 	mux := http.NewServeMux()
-	var issuerURL string
+	m := &mockOIDCServer{}
 
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{
-			"issuer":   issuerURL,
-			"jwks_uri": issuerURL + "/jwks",
+			"issuer":   m.URL,
+			"jwks_uri": m.URL + "/jwks",
 		})
 	})
 	mux.HandleFunc("/jwks", func(w http.ResponseWriter, _ *http.Request) {
@@ -85,22 +81,15 @@ func TestJWTVerifier_RoundTrip(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(jwks)
 	})
 
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
-	issuerURL = srv.URL
+	m.Server = httptest.NewServer(mux)
+	m.URL = m.Server.URL
+	t.Cleanup(m.Server.Close)
+	return m
+}
 
-	const audience = "my-api"
+func signJWT(t *testing.T, privKey *rsa.PrivateKey, keyID string, claims jwt.Claims, extra ...any) string {
+	t.Helper()
 
-	// Create verifier.
-	ctx := context.Background()
-	verifier, err := NewJWTVerifier(ctx, issuerURL, audience,
-		WithHTTPClient(srv.Client()),
-	)
-	if err != nil {
-		t.Fatalf("NewJWTVerifier: %v", err)
-	}
-
-	// Sign a JWT.
 	signer, err := jose.NewSigner(
 		jose.SigningKey{Algorithm: jose.RS256, Key: privKey},
 		(&jose.SignerOptions{}).WithType("JWT").WithHeader("kid", keyID),
@@ -109,22 +98,49 @@ func TestJWTVerifier_RoundTrip(t *testing.T) {
 		t.Fatalf("new signer: %v", err)
 	}
 
+	builder := jwt.Signed(signer).Claims(claims)
+	for _, c := range extra {
+		builder = builder.Claims(c)
+	}
+
+	raw, err := builder.Serialize()
+	if err != nil {
+		t.Fatalf("sign JWT: %v", err)
+	}
+	return raw
+}
+
+// TestJWTVerifier_RoundTrip spins up a mock OIDC provider and verifies the
+// full flow: create verifier → sign a JWT → verify → extract user.
+func TestJWTVerifier_RoundTrip(t *testing.T) {
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+
+	const keyID = "test-key-1"
+	const audience = "my-api"
+
+	m := newMockOIDCServer(t, &privKey.PublicKey, keyID)
+
+	ctx := context.Background()
+	verifier, err := NewJWTVerifier(ctx, m.URL, audience,
+		WithHTTPClient(m.Server.Client()),
+	)
+	if err != nil {
+		t.Fatalf("NewJWTVerifier: %v", err)
+	}
+
 	now := time.Now()
-	claims := jwt.Claims{
-		Issuer:    issuerURL,
+	raw := signJWT(t, privKey, keyID, jwt.Claims{
+		Issuer:    m.URL,
 		Subject:   "user-42",
 		Audience:  jwt.Audience{audience},
 		IssuedAt:  jwt.NewNumericDate(now),
 		Expiry:    jwt.NewNumericDate(now.Add(5 * time.Minute)),
 		NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
-	}
+	})
 
-	raw, err := jwt.Signed(signer).Claims(claims).Serialize()
-	if err != nil {
-		t.Fatalf("sign JWT: %v", err)
-	}
-
-	// Verify the token.
 	user, err := verifier.Verify(ctx, raw)
 	if err != nil {
 		t.Fatalf("Verify: %v", err)
@@ -142,69 +158,26 @@ func TestJWTVerifier_ExpiredToken(t *testing.T) {
 	}
 
 	const keyID = "test-key-1"
-
-	jwks := jose.JSONWebKeySet{
-		Keys: []jose.JSONWebKey{
-			{
-				Key:       &privKey.PublicKey,
-				KeyID:     keyID,
-				Algorithm: string(jose.RS256),
-				Use:       "sig",
-			},
-		},
-	}
-
-	mux := http.NewServeMux()
-	var issuerURL string
-
-	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"issuer":   issuerURL,
-			"jwks_uri": issuerURL + "/jwks",
-		})
-	})
-	mux.HandleFunc("/jwks", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(jwks)
-	})
-
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
-	issuerURL = srv.URL
-
 	const audience = "my-api"
 
+	m := newMockOIDCServer(t, &privKey.PublicKey, keyID)
+
 	ctx := context.Background()
-	verifier, err := NewJWTVerifier(ctx, issuerURL, audience,
-		WithHTTPClient(srv.Client()),
+	verifier, err := NewJWTVerifier(ctx, m.URL, audience,
+		WithHTTPClient(m.Server.Client()),
 	)
 	if err != nil {
 		t.Fatalf("NewJWTVerifier: %v", err)
 	}
 
-	signer, err := jose.NewSigner(
-		jose.SigningKey{Algorithm: jose.RS256, Key: privKey},
-		(&jose.SignerOptions{}).WithType("JWT").WithHeader("kid", keyID),
-	)
-	if err != nil {
-		t.Fatalf("new signer: %v", err)
-	}
-
-	// Issue an already-expired token.
 	past := time.Now().Add(-1 * time.Hour)
-	claims := jwt.Claims{
-		Issuer:   issuerURL,
+	raw := signJWT(t, privKey, keyID, jwt.Claims{
+		Issuer:   m.URL,
 		Subject:  "user-42",
 		Audience: jwt.Audience{audience},
 		IssuedAt: jwt.NewNumericDate(past),
 		Expiry:   jwt.NewNumericDate(past.Add(5 * time.Minute)),
-	}
-
-	raw, err := jwt.Signed(signer).Claims(claims).Serialize()
-	if err != nil {
-		t.Fatalf("sign JWT: %v", err)
-	}
+	})
 
 	_, err = verifier.Verify(ctx, raw)
 	if err == nil {
@@ -213,7 +186,7 @@ func TestJWTVerifier_ExpiredToken(t *testing.T) {
 }
 
 // TestJWTVerifier_WrongAudience verifies that tokens with wrong audience are
-// rejected.
+// rejected by the explicit audience check.
 func TestJWTVerifier_WrongAudience(t *testing.T) {
 	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -222,65 +195,24 @@ func TestJWTVerifier_WrongAudience(t *testing.T) {
 
 	const keyID = "test-key-1"
 
-	jwks := jose.JSONWebKeySet{
-		Keys: []jose.JSONWebKey{
-			{
-				Key:       &privKey.PublicKey,
-				KeyID:     keyID,
-				Algorithm: string(jose.RS256),
-				Use:       "sig",
-			},
-		},
-	}
-
-	mux := http.NewServeMux()
-	var issuerURL string
-
-	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"issuer":   issuerURL,
-			"jwks_uri": issuerURL + "/jwks",
-		})
-	})
-	mux.HandleFunc("/jwks", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(jwks)
-	})
-
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
-	issuerURL = srv.URL
+	m := newMockOIDCServer(t, &privKey.PublicKey, keyID)
 
 	ctx := context.Background()
-	verifier, err := NewJWTVerifier(ctx, issuerURL, "my-api",
-		WithHTTPClient(srv.Client()),
+	verifier, err := NewJWTVerifier(ctx, m.URL, "my-api",
+		WithHTTPClient(m.Server.Client()),
 	)
 	if err != nil {
 		t.Fatalf("NewJWTVerifier: %v", err)
 	}
 
-	signer, err := jose.NewSigner(
-		jose.SigningKey{Algorithm: jose.RS256, Key: privKey},
-		(&jose.SignerOptions{}).WithType("JWT").WithHeader("kid", keyID),
-	)
-	if err != nil {
-		t.Fatalf("new signer: %v", err)
-	}
-
 	now := time.Now()
-	claims := jwt.Claims{
-		Issuer:   issuerURL,
+	raw := signJWT(t, privKey, keyID, jwt.Claims{
+		Issuer:   m.URL,
 		Subject:  "user-42",
 		Audience: jwt.Audience{"wrong-audience"},
 		IssuedAt: jwt.NewNumericDate(now),
 		Expiry:   jwt.NewNumericDate(now.Add(5 * time.Minute)),
-	}
-
-	raw, err := jwt.Signed(signer).Claims(claims).Serialize()
-	if err != nil {
-		t.Fatalf("sign JWT: %v", err)
-	}
+	})
 
 	_, err = verifier.Verify(ctx, raw)
 	if err == nil {
@@ -297,82 +229,35 @@ func TestJWTVerifier_CustomClaimMapper(t *testing.T) {
 	}
 
 	const keyID = "test-key-1"
-
-	jwks := jose.JSONWebKeySet{
-		Keys: []jose.JSONWebKey{
-			{
-				Key:       &privKey.PublicKey,
-				KeyID:     keyID,
-				Algorithm: string(jose.RS256),
-				Use:       "sig",
-			},
-		},
-	}
-
-	mux := http.NewServeMux()
-	var issuerURL string
-
-	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"issuer":   issuerURL,
-			"jwks_uri": issuerURL + "/jwks",
-		})
-	})
-	mux.HandleFunc("/jwks", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(jwks)
-	})
-
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
-	issuerURL = srv.URL
-
 	const audience = "my-api"
 
-	customMapper := func(raw json.RawMessage) (User, error) {
-		var c struct {
-			CustomID string `json:"custom_id"`
-		}
-		if err := json.Unmarshal(raw, &c); err != nil {
-			return User{}, err
-		}
-		return User{ID: fmt.Sprintf("custom-%s", c.CustomID)}, nil
+	m := newMockOIDCServer(t, &privKey.PublicKey, keyID)
+
+	customMapper := func(claims *oidc.AccessTokenClaims) (User, error) {
+		// Read a custom claim from the extra claims map.
+		customID, _ := claims.Claims["custom_id"].(string)
+		return User{ID: "custom-" + customID}, nil
 	}
 
 	ctx := context.Background()
-	verifier, err := NewJWTVerifier(ctx, issuerURL, audience,
-		WithHTTPClient(srv.Client()),
+	verifier, err := NewJWTVerifier(ctx, m.URL, audience,
+		WithHTTPClient(m.Server.Client()),
 		WithClaimMapper(customMapper),
 	)
 	if err != nil {
 		t.Fatalf("NewJWTVerifier: %v", err)
 	}
 
-	signer, err := jose.NewSigner(
-		jose.SigningKey{Algorithm: jose.RS256, Key: privKey},
-		(&jose.SignerOptions{}).WithType("JWT").WithHeader("kid", keyID),
-	)
-	if err != nil {
-		t.Fatalf("new signer: %v", err)
-	}
-
 	now := time.Now()
-	standardClaims := jwt.Claims{
-		Issuer:   issuerURL,
+	raw := signJWT(t, privKey, keyID, jwt.Claims{
+		Issuer:   m.URL,
 		Subject:  "user-42",
 		Audience: jwt.Audience{audience},
 		IssuedAt: jwt.NewNumericDate(now),
 		Expiry:   jwt.NewNumericDate(now.Add(5 * time.Minute)),
-	}
-	extraClaims := struct {
+	}, struct {
 		CustomID string `json:"custom_id"`
-	}{CustomID: "abc"}
-
-	raw, err := jwt.Signed(signer).Claims(standardClaims).Claims(extraClaims).Serialize()
-	if err != nil {
-		t.Fatalf("sign JWT: %v", err)
-	}
+	}{CustomID: "abc"})
 
 	user, err := verifier.Verify(ctx, raw)
 	if err != nil {

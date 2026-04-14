@@ -99,13 +99,15 @@ Source doc: [09-errors.md](09-errors.md)
 Source doc: [05-database.md](05-database.md)
 
 - [x] `runtime/database` — pgxpool management and goose migrations
-  - [x] `Config` struct aligned with pgxpool native knobs (`MaxConns`, `MinConns`, `MaxConnLifetime`, `MaxConnIdleTime`, `HealthCheckPeriod`)
+  - [x] `runtimedatabase.Config` — runtime-only pool knobs (`DSN`, `MaxConns`, `MinConns`, `MaxConnLifetime`, `MaxConnIdleTime`, `HealthCheckPeriod`). This is a narrower type than the app's `DatabaseConfig` (which adds `AutoMigrate`). The app maps `cfg.Database` fields into `runtimedatabase.Config` at the call site; `AutoMigrate` stays in the app config and gates the `Migrate` call.
   - [x] `runtimedatabase.Open(ctx, Config) (*pgxpool.Pool, error)` — creates pool, applies config overrides, Ping for fail-fast
   - [x] `runtimedatabase.Migrate(ctx, *pgxpool.Pool, fs.FS, ...MigrateOption) ([]*goose.MigrationResult, error)` — goose Provider API with session locking
   - [x] `runtimedatabase.HealthCheck(*pgxpool.Pool) runtimehealth.CheckFunc` — readiness integration
   - [x] Tests (unit + integration)
+- [ ] Opt-in auto-migration wiring in the generated starter — the runtime provides `Migrate()`, but the starter's `cmd/app/main.go` must call it conditionally when `cfg.Database.AutoMigrate` is true (see [05-database.md](05-database.md) lines 354-399)
+- [ ] Embedded migrations packaging in the generated starter — `db/embed.go` with `//go:embed migrations/*.sql` exporting `var Migrations embed.FS`, so the binary carries its own migrations (see [05-database.md](05-database.md) lines 356-364)
 
-**Completed** 2026-04-13, commit `89e59d4` (feat: add runtime/database package with pgxpool management and goose migrations).
+**Runtime package completed** 2026-04-13, commit `89e59d4` (feat: add runtime/database package with pgxpool management and goose migrations). Starter integration items above are tracked in section 2.
 
 ### 1.5 Auth & Authorization
 
@@ -178,7 +180,8 @@ Source docs: [02-system-architecture.md](02-system-architecture.md),
 - [ ] Connect `WithInterceptors(...)`: otelconnect, protovalidate, auth interceptor (RPC-level concerns — these receive typed proto requests, not raw HTTP)
 - [ ] Two listeners: `:3000` (HTTP/Connect) and `:9080` (Restate endpoint)
 - [x] Graceful shutdown via `runtimeserve.Serve()` instead of `http.ListenAndServe`
-- [ ] DB pool initialization on startup
+- [ ] DB pool initialization on startup via `runtimedatabase.Open`
+- [ ] Conditional auto-migration on startup via `runtimedatabase.Migrate` when `cfg.Database.AutoMigrate` is true
 - [ ] OTEL setup on startup
 - [x] Health check endpoint registration
 - [ ] Restate handler binding
@@ -204,6 +207,7 @@ Source doc: [15-docker-compose.md](15-docker-compose.md)
 Source doc: [05-database.md](05-database.md)
 
 - [ ] `sqlc.yaml` configuration file
+- [ ] `db/embed.go` — `//go:embed migrations/*.sql` exporting `var Migrations embed.FS` for use with `runtimedatabase.Migrate`
 - [ ] `db/migrations/` directory (with initial example migration)
 - [ ] `db/queries/` directory (with example query file)
 - [ ] `db/seeds/` directory (with example seed file)

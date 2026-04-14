@@ -11,6 +11,33 @@ message Config {
 
   // Public browser-safe configuration served at /_gofra/config.js.
   PublicConfig public = 2;
+
+  // Database configuration.
+  DatabaseConfig database = 3;
+}
+
+// DatabaseConfig holds PostgreSQL connection and pool settings.
+message DatabaseConfig {
+  // PostgreSQL connection string in URL or keyword/value format.
+  string dsn = 1 [(gofra.config.v1.field).secret = true, (gofra.config.v1.field).default_value.string_value = "postgres://postgres:postgres@localhost:5432/__GOFRA_APP_NAME__?sslmode=disable"];
+
+  // Maximum number of connections in the pool (0 = pgxpool default).
+  int32 max_conns = 2;
+
+  // Minimum number of idle connections maintained (0 = pgxpool default).
+  int32 min_conns = 3;
+
+  // Maximum time a connection can be reused, as a Go duration string such as 1h. Empty uses pgxpool default.
+  string max_conn_lifetime = 4;
+
+  // Maximum time a connection can sit idle, as a Go duration string such as 30m. Empty uses pgxpool default.
+  string max_conn_idle_time = 5;
+
+  // Interval between pool health checks, as a Go duration string such as 1m. Empty uses pgxpool default.
+  string health_check_period = 6;
+
+  // Run goose migrations on startup. Safe for dev; use a separate migration step in production.
+  bool auto_migrate = 7;
 }
 
 // AppConfig holds server-side application settings.

@@ -104,55 +104,10 @@ Source doc: [05-database.md](05-database.md)
   - [x] `runtimedatabase.Migrate(ctx, *pgxpool.Pool, fs.FS, ...MigrateOption) ([]*goose.MigrationResult, error)` — goose Provider API with session locking
   - [x] `runtimedatabase.HealthCheck(*pgxpool.Pool) runtimehealth.CheckFunc` — readiness integration
   - [x] Tests (unit + integration)
-- [ ] Opt-in auto-migration wiring in the generated starter — the runtime provides `Migrate()`, but the starter's `cmd/app/main.go` must call it conditionally when `cfg.Database.AutoMigrate` is true (see [05-database.md](05-database.md) lines 354-399)
-- [ ] Embedded migrations packaging in the generated starter — `db/embed.go` with `//go:embed migrations/*.sql` exporting `var Migrations embed.FS`, so the binary carries its own migrations (see [05-database.md](05-database.md) lines 356-364)
+- [x] Opt-in auto-migration wiring in the generated starter — `cmd/app/main.go` calls `runtimedatabase.Migrate()` conditionally when `cfg.Database.AutoMigrate` is true
+- [x] Embedded migrations packaging in the generated starter — `db/embed.go` with `//go:embed migrations/*.sql` exporting `var Migrations embed.FS`
 
-#### Remaining Database Slice Plan
-
-The runtime package itself is done. The remaining work is starter integration
-across config, scaffold files, startup wiring, and task-runner ergonomics. Do
-the slice in this order:
-
-1. **Config prerequisite first.**
-   Add the `database` section to the starter config proto and generated app
-   config so `cmd/app/main.go` can read a typed `cfg.Database`. Keep
-   `AutoMigrate` app-owned; the starter should map `cfg.Database` into
-   `runtimedatabase.Config` explicitly instead of widening the runtime API.
-2. **Add the starter-owned database tree.**
-   Land `sqlc.yaml`, `db/embed.go`, `db/migrations/`, `db/queries/`, and
-   `db/seeds/` together. Use zero-padded goose filenames (`00001_...sql`)
-   because sqlc parses goose migration directories lexicographically when they
-   are used as schema input. Make the seed example idempotent so `mise run
-   seed` is safe to re-run.
-3. **Wire startup around the existing runtime package.**
-   Update `cmd/app/main.go` to open the pgx pool via `runtimedatabase.Open`,
-   register a Postgres readiness check, run `runtimedatabase.Migrate` only
-   when `cfg.Database.AutoMigrate` is true, log applied migration versions, and
-   close the pool in `runtimeserve.Config.OnShutdown`.
-4. **Add task-runner support in the same change.**
-   The starter is not usable with only files on disk. Ship `gen:sql`,
-   `migrate`, `migrate:create`, `migrate:down`, `migrate:status`, and `seed`
-   with the scaffold update. Either keep the current `generate` task as a
-   temporary compatibility alias or replace it with the `gen` umbrella task in
-   the same change so the starter docs do not drift.
-5. **Expand smoke coverage, but defer live-DB linting.**
-   Extend `mise run smoke:new` to cover the generated app after the database
-   files land. Do not make `sqlc vet` / `sqlc/db-prepare` part of the first
-   scaffold slice; upstream requires a live database with the current schema,
-   so that belongs after the Docker/infra slice exists.
-
-#### Acceptance Criteria
-
-- A fresh `gofra new` app contains the database tree promised by
-  [05-database.md](05-database.md) and can run its SQL/codegen workflow
-  without manual file creation.
-- Starter startup fails fast on invalid DSN or migration errors, exposes
-  Postgres through readiness, and applies embedded migrations only when
-  `database.auto_migrate` is enabled.
-- The repo has a starter-backed regression check for the database slice, not
-  only for config generation.
-
-**Runtime package completed** 2026-04-13, commit `89e59d4` (feat: add runtime/database package with pgxpool management and goose migrations). Starter integration items above are tracked in section 2.
+**Runtime package completed** 2026-04-13, commit `89e59d4`. **Starter integration completed** 2026-04-14.
 
 ### 1.5 Auth & Authorization
 
@@ -213,6 +168,7 @@ Source doc: [16-testing.md](16-testing.md)
 Files and structure that `internal/scaffold/starter/full/` should produce.
 Today the starter produces: `cmd/app/main.go`, `go.mod`, `gofra.yaml`,
 `mise.toml`, `proto/.../config.proto`, `web/embed.go`, `web/index.html`,
+`sqlc.yaml`, `db/embed.go`, `db/migrations/`, `db/queries/`, `db/seeds/`,
 `.gitignore`, `README.md`.
 
 ### 2.1 Server Bootstrap
@@ -225,8 +181,8 @@ Source docs: [02-system-architecture.md](02-system-architecture.md),
 - [ ] Connect `WithInterceptors(...)`: otelconnect, protovalidate, auth interceptor (RPC-level concerns — these receive typed proto requests, not raw HTTP)
 - [ ] Two listeners: `:3000` (HTTP/Connect) and `:9080` (Restate endpoint)
 - [x] Graceful shutdown via `runtimeserve.Serve()` instead of `http.ListenAndServe`
-- [ ] DB pool initialization on startup via `runtimedatabase.Open`
-- [ ] Conditional auto-migration on startup via `runtimedatabase.Migrate` when `cfg.Database.AutoMigrate` is true
+- [x] DB pool initialization on startup via `runtimedatabase.Open`
+- [x] Conditional auto-migration on startup via `runtimedatabase.Migrate` when `cfg.Database.AutoMigrate` is true
 - [ ] OTEL setup on startup
 - [x] Health check endpoint registration
 - [ ] Restate handler binding
@@ -251,11 +207,13 @@ Source doc: [15-docker-compose.md](15-docker-compose.md)
 
 Source doc: [05-database.md](05-database.md)
 
-- [ ] `sqlc.yaml` configuration file (`schema: db/migrations`, `queries: db/queries`, `sql_package: pgx/v5`, output `db/sqlc`)
-- [ ] `db/embed.go` — `//go:embed migrations/*.sql` exporting `var Migrations embed.FS` for use with `runtimedatabase.Migrate`
-- [ ] `db/migrations/` directory (with initial zero-padded example migration such as `00001_create_posts.sql`)
-- [ ] `db/queries/` directory (with example query file)
-- [ ] `db/seeds/` directory (with idempotent example seed file)
+- [x] `sqlc.yaml` configuration file (`schema: db/migrations`, `queries: db/queries`, `sql_package: pgx/v5`, output `db/sqlc`)
+- [x] `db/embed.go` — `//go:embed migrations/*.sql` exporting `var Migrations embed.FS` for use with `runtimedatabase.Migrate`
+- [x] `db/migrations/` directory (with initial zero-padded example migration `00001_create_posts.sql`)
+- [x] `db/queries/` directory (with example query file)
+- [x] `db/seeds/` directory (with idempotent example seed file)
+
+**Completed** 2026-04-14.
 
 ### 2.4 Protobuf & Code Generation
 
@@ -304,7 +262,7 @@ Today only `generate` and `dev` exist. Missing:
 - [ ] `gen` — umbrella task (gen:go + gen:ts + gen:sql + gen:config)
 - [ ] `gen:go` — `buf generate` for Go Connect stubs
 - [ ] `gen:ts` — `buf generate` for TypeScript
-- [ ] `gen:sql` — `sqlc generate`
+- [x] `gen:sql` — `sqlc generate`
 - [ ] `dev:api` — Go server with air hot reload + Restate registration
 - [ ] `dev:web` — Vite dev server
 - [ ] `infra` — `docker compose up -d`
@@ -316,11 +274,11 @@ Today only `generate` and `dev` exist. Missing:
 - [ ] `build:web` — frontend assets only
 - [ ] `test` — `go test ./...`
 - [ ] `lint` — `buf lint` + `golangci-lint run`
-- [ ] `migrate` — `goose up`
-- [ ] `migrate:create` — new migration file
-- [ ] `migrate:down` — rollback last migration
-- [ ] `migrate:status` — show migration status
-- [ ] `seed` — `goose --no-versioning` seed data
+- [x] `migrate` — `goose up`
+- [x] `migrate:create` — new migration file
+- [x] `migrate:down` — rollback last migration
+- [x] `migrate:status` — show migration status
+- [x] `seed` — `goose --no-versioning` seed data
 
 ### 2.8 Config Additions
 
@@ -331,7 +289,7 @@ defined in the canonical schema ([06-configuration.md](06-configuration.md)
 lines 75-160) are not yet in the starter's config proto. Implement these
 matching the field names and types in that doc exactly:
 
-- [ ] `database` section (see `DatabaseConfig` in 06-configuration.md)
+- [x] `database` section (see `DatabaseConfig` in 06-configuration.md)
 - [ ] `restate` section (see `RestateConfig` in 06-configuration.md)
 - [ ] `auth` section (see `AuthConfig` in 06-configuration.md)
 - [ ] `observability` section (see `OTELConfig` in 06-configuration.md)

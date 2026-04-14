@@ -6,14 +6,17 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	runtimeconfig "__GOFRA_FRAMEWORK_MODULE__/runtime/config"
+	runtimedatabase "__GOFRA_FRAMEWORK_MODULE__/runtime/database"
 	runtimehealth "__GOFRA_FRAMEWORK_MODULE__/runtime/health"
 	runtimeserve "__GOFRA_FRAMEWORK_MODULE__/runtime/serve"
 
 	"__GOFRA_MODULE__/config"
+	"__GOFRA_MODULE__/db"
 	"__GOFRA_MODULE__/web"
 )
 
@@ -24,7 +27,41 @@ func main() {
 		os.Exit(1)
 	}
 
-	health := runtimehealth.New()
+	ctx := context.Background()
+
+	// --- Database -----------------------------------------------------------
+
+	pool, err := runtimedatabase.Open(ctx, runtimedatabase.Config{
+		DSN:               cfg.Database.DSN,
+		MaxConns:          cfg.Database.MaxConns,
+		MinConns:          cfg.Database.MinConns,
+		MaxConnLifetime:   parseDuration(cfg.Database.MaxConnLifetime),
+		MaxConnIdleTime:   parseDuration(cfg.Database.MaxConnIDleTime),
+		HealthCheckPeriod: parseDuration(cfg.Database.HealthCheckPeriod),
+	})
+	if err != nil {
+		slog.Error("database connection failed", "error", err)
+		os.Exit(1)
+	}
+
+	if cfg.Database.AutoMigrate {
+		results, err := runtimedatabase.Migrate(ctx, pool, db.Migrations)
+		if err != nil {
+			pool.Close()
+			slog.Error("migration failed", "error", err)
+			os.Exit(1)
+		}
+		for _, r := range results {
+			slog.Info("migration applied", "version", r.Source.Version, "duration", r.Duration)
+		}
+	}
+
+	// --- Health & Routing ---------------------------------------------------
+
+	health := runtimehealth.New(runtimehealth.Check{
+		Name: "postgres",
+		Fn:   runtimedatabase.HealthCheck(pool),
+	})
 
 	// Health endpoints on the root mux, structurally outside app middleware.
 	root := http.NewServeMux()
@@ -39,15 +76,35 @@ func main() {
 
 	root.Handle("/", app)
 
+	// --- Start --------------------------------------------------------------
+
 	addr := fmt.Sprintf(":%d", cfg.App.Port)
 	slog.Info("starting app", "app", cfg.App.Name, "addr", addr)
 
-	if err := runtimeserve.Serve(context.Background(), runtimeserve.Config{
+	if err := runtimeserve.Serve(ctx, runtimeserve.Config{
 		Handler: root,
 		Addr:    addr,
 		Health:  health,
+		OnShutdown: func(ctx context.Context) error {
+			pool.Close()
+			return nil
+		},
 	}); err != nil {
 		slog.Error("server stopped with error", "error", err)
 		os.Exit(1)
 	}
+}
+
+// parseDuration parses a Go duration string (e.g. "30m", "1h"). Returns zero
+// for empty strings, which leaves the pgxpool default in place.
+func parseDuration(s string) time.Duration {
+	if s == "" {
+		return 0
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		slog.Error("invalid duration in config, using default", "value", s, "error", err)
+		return 0
+	}
+	return d
 }

@@ -39,6 +39,11 @@ func TestGenerateCreatesRunnableStarter(t *testing.T) {
 		"proto/myapp/config/v1/config.proto",
 		"web/embed.go",
 		"web/index.html",
+		"sqlc.yaml",
+		"db/embed.go",
+		"db/migrations/00001_create_posts.sql",
+		"db/queries/posts.sql",
+		"db/seeds/seed.sql",
 	} {
 		if _, err := os.Stat(filepath.Join(destination, rel)); err != nil {
 			t.Fatalf("missing scaffold file %q: %v", rel, err)

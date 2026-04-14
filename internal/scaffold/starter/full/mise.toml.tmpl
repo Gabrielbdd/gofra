@@ -10,7 +10,33 @@ GOFLAGS=-mod=mod go run __GOFRA_FRAMEWORK_MODULE__/cmd/gofra generate config \
 go mod tidy
 """
 
+[tasks."gen:sql"]
+description = "Generate Go code from SQL queries via sqlc"
+run = "sqlc generate"
+sources = ["db/queries/*.sql", "db/migrations/*.sql", "sqlc.yaml"]
+outputs = ["db/sqlc/*.go"]
+
 [tasks.dev]
 description = "Generate and start the backend"
 depends = ["generate"]
 run = "go run ./cmd/app"
+
+[tasks.migrate]
+description = "Run pending database migrations"
+run = "goose -dir db/migrations postgres $DATABASE_URL up"
+
+[tasks."migrate:create"]
+description = "Create a new migration file"
+run = "goose -dir db/migrations create {{arg(i=0)}} sql"
+
+[tasks."migrate:down"]
+description = "Rollback the last migration"
+run = "goose -dir db/migrations postgres $DATABASE_URL down"
+
+[tasks."migrate:status"]
+description = "Show migration status"
+run = "goose -dir db/migrations postgres $DATABASE_URL status"
+
+[tasks.seed]
+description = "Seed the database with development data"
+run = "goose -dir db/seeds --no-versioning postgres $DATABASE_URL up"

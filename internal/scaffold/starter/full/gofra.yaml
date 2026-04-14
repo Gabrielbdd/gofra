@@ -3,3 +3,7 @@
 app:
   name: __GOFRA_APP_NAME__
   port: 3000
+
+database:
+  dsn: "postgres://postgres:postgres@localhost:5432/__GOFRA_APP_NAME__?sslmode=disable"
+  auto_migrate: true

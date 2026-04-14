@@ -16,59 +16,6 @@ The package is named `runtimeerrors` in code.
 
 ## API
 
-### Error Constructors
-
-Each constructor returns a `*connect.Error` with the appropriate Connect error
-code and, where applicable, structured error details following Google API
-conventions.
-
-```go
-func NotFound(resource, identifier string) *connect.Error
-```
-
-Returns `CodeNotFound` with a `ResourceInfo` detail containing the resource
-type and identifier.
-
-```go
-func AlreadyExists(resource, identifier string) *connect.Error
-```
-
-Returns `CodeAlreadyExists` with a `ResourceInfo` detail.
-
-```go
-func InvalidArgument(violations ...FieldViolation) *connect.Error
-```
-
-Returns `CodeInvalidArgument` with a `BadRequest` detail containing field
-violations.
-
-```go
-func PermissionDenied(msg string) *connect.Error
-```
-
-Returns `CodePermissionDenied` with the given message.
-
-```go
-func Aborted(msg string) *connect.Error
-```
-
-Returns `CodeAborted` with the given message. Use for etag/concurrency
-conflicts.
-
-```go
-func FailedPrecondition(msg string) *connect.Error
-```
-
-Returns `CodeFailedPrecondition` with the given message.
-
-```go
-func Internal(ctx context.Context, err error) *connect.Error
-```
-
-Wraps an unexpected error as `CodeInternal`. Logs the original error via
-`slog.ErrorContext` but returns a generic `"internal error"` message to the
-client. Never leaks internal details.
-
 ### FieldViolation
 
 ```go
@@ -78,38 +25,143 @@ type FieldViolation struct {
 }
 ```
 
-Describes a single field-level validation failure. Used with
-`InvalidArgument`.
+Describes a single field-level validation failure. A slice is used (not a map)
+so that ordering is preserved and multiple violations on the same field are
+representable.
+
+### Error Constructors
+
+Each constructor returns a `*connect.Error` with the appropriate Connect error
+code. Where noted, structured error details following Google API conventions
+are attached.
+
+#### NotFound
+
+```go
+func NotFound(resource, identifier string) *connect.Error
+```
+
+Returns `connect.CodeNotFound`.
+
+- **Message:** `<resource> "<identifier>" not found`
+- **Detail:** `errdetails.ResourceInfo` with `ResourceType`, `ResourceName`,
+  and `Description: "The requested <resource> does not exist."`
+
+#### AlreadyExists
+
+```go
+func AlreadyExists(resource, identifier string) *connect.Error
+```
+
+Returns `connect.CodeAlreadyExists`.
+
+- **Message:** `<resource> "<identifier>" already exists`
+- **Detail:** None.
+
+#### InvalidArgument
+
+```go
+func InvalidArgument(violations ...FieldViolation) *connect.Error
+```
+
+Returns `connect.CodeInvalidArgument`.
+
+- **Message:** `"validation failed"`
+- **Detail:** `errdetails.BadRequest` containing one
+  `BadRequest_FieldViolation` per input violation, preserving order.
+
+#### PermissionDenied
+
+```go
+func PermissionDenied(msg string) *connect.Error
+```
+
+Returns `connect.CodePermissionDenied`.
+
+- **Message:** The `msg` argument verbatim.
+- **Detail:** None.
+
+#### Aborted
+
+```go
+func Aborted(msg string) *connect.Error
+```
+
+Returns `connect.CodeAborted`. Use for etag/concurrency conflicts.
+
+- **Message:** The `msg` argument verbatim.
+- **Detail:** None.
+
+#### FailedPrecondition
+
+```go
+func FailedPrecondition(msg string) *connect.Error
+```
+
+Returns `connect.CodeFailedPrecondition`. Use when the system is not in the
+required state for the operation.
+
+- **Message:** The `msg` argument verbatim.
+- **Detail:** None.
+
+#### Internal
+
+```go
+func Internal(ctx context.Context, err error) *connect.Error
+```
+
+Returns `connect.CodeInternal`. The original error is **never** sent to the
+client.
+
+- **Message:** `"internal error"` (always, regardless of the original error).
+- **Detail:** None.
+- **Side effect:** Logs the original error via
+  `slog.ErrorContext(ctx, "internal error", "error", err)`.
+
+Callers must not log the same error again — this function handles logging
+exactly once.
 
 ### Panic Recovery
 
 ```go
-func RecoverHandler(ctx context.Context, spec connect.Spec, _ http.Header, r any) error
+func RecoverHandler(
+    ctx context.Context,
+    spec connect.Spec,
+    _ http.Header,
+    r any,
+) error
 ```
 
-A callback for `connect.WithRecover()` that logs the panic value and stack
-trace, then returns a sanitized `CodeInternal` error to the client.
+A callback for `connect.WithRecover()` that captures panics in Connect
+handlers, logs them with a stack trace, and returns a sanitized error.
+
+- **Returns:** `connect.CodeInternal` with message `"internal error"`.
+- **Logs:** `slog.ErrorContext` with message `"panic recovered"` and fields:
+  - `panic` — the recovered value
+  - `stack` — full goroutine stack trace (`debug.Stack()`)
+  - `procedure` — the Connect procedure name from `spec.Procedure`
+
+`http.ErrAbortHandler` panics are not intercepted by this handler — Connect's
+own recovery machinery handles them before `RecoverHandler` is called.
 
 ## Behavior
 
 ### Error Detail Attachment
 
-`NotFound`, `AlreadyExists`, and `InvalidArgument` attach structured error
-details to the Connect error using `errdetails` from the
-`google.golang.org/genproto` package. Clients can inspect these details
-programmatically.
+`NotFound` and `InvalidArgument` attach structured error details using
+`connect.NewErrorDetail()`. If detail creation fails (which should not happen
+with well-formed inputs), the error is returned without the detail. Clients
+can inspect details programmatically via the Connect error details API.
+
+`AlreadyExists` does not attach error details — only the message carries the
+resource information.
 
 ### Internal Error Sanitization
 
-`Internal` always sends `"internal error"` to the client regardless of the
-original error message. The original error and its message are logged
-server-side only.
-
-### Panic Recovery
-
-`RecoverHandler` is designed to be passed to `connect.WithRecover()` as an
-interceptor option. It captures panics in Connect handlers, logs them with a
-stack trace, and converts them to a `CodeInternal` error.
+`Internal` is designed to prevent information leakage. The original error
+message, type, and stack trace are logged server-side only. The client always
+receives the generic `"internal error"` message regardless of what the
+original error contained.
 
 ## Examples
 
@@ -129,9 +181,8 @@ if err != nil {
 }
 
 // Panic recovery interceptor
-handler := connect.NewUnaryHandler(
-    "/example",
-    exampleFn,
+handler := svcconnect.NewFooServiceHandler(
+    &FooService{},
     connect.WithRecover(runtimeerrors.RecoverHandler),
 )
 ```

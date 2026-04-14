@@ -32,21 +32,38 @@ gofra new [flags] <directory>
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `directory` | Yes | Target directory for the new application |
+| `directory` | Yes | Target directory for the new application (must be empty or non-existent) |
 
 **Flags:**
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--module` | derived from directory name | Go module path for the generated app |
-| `--framework-dir` | auto-detected | Path to local gofra framework checkout |
+| `--module` | Derived from directory name | Go module path for the generated app |
+| `--framework-dir` | Auto-detected | Path to local gofra framework checkout |
+
+**Framework detection:** When `--framework-dir` is not provided, the CLI
+walks up the directory tree from the current working directory looking for a
+directory that contains `internal/scaffold/starter/full`. This allows running
+`go run ./cmd/gofra new ../myapp` from within the framework checkout.
 
 **Behavior:**
 
-1. Copies the canonical starter template to `<directory>`.
-2. Replaces template variables with the app name, module path, and framework
-   references.
-3. Prints next steps: `cd <directory>`, `mise trust`, `mise run dev`.
+1. Validates that the target directory is empty or does not exist.
+2. Copies the canonical starter template, replacing template tokens with
+   the app name, module path, and framework references.
+3. Strips `.tmpl` extensions from processed files.
+4. Prints the created path and next steps.
+
+**Output:**
+
+```
+created /absolute/path/to/myapp
+
+next steps:
+  cd myapp
+  mise trust
+  mise run dev
+```
 
 **Example:**
 
@@ -57,14 +74,20 @@ gofra new --module github.com/myorg/myapp ../myapp
 
 ### `gofra generate config`
 
-Generates configuration loading code from a `.proto` file.
+Generates typed Go configuration code from a protobuf schema. See
+[Config Generator](generate-config.md) for the full reference.
 
 ```
 gofra generate config [flags] <proto-file>
 ```
 
-This command reads a protobuf schema defining your application's configuration
-and generates Go code for loading and validating that config.
+**Flags:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--out` | `"config"` | Output directory for generated Go files |
+| `--package` | `"config"` | Go package name for generated code |
+| `--runtime` | `""` | Import path for the framework's `runtime/config` package |
 
 ### `gofra help`
 
@@ -76,13 +99,18 @@ gofra --help
 gofra -h
 ```
 
-## Generated App Structure
+## Exit Codes
 
-See [Generated App Layout](../starter/generated-app-layout.md) for the full
-structure of a `gofra new` application.
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `1` | Command error (failed to generate, invalid input, etc.) |
+| `2` | Usage error (missing required arguments, unknown command) |
 
 ## Related Pages
 
+- [Config Generator](generate-config.md) — Full reference for
+  `gofra generate config`.
 - [Generated App Layout](../starter/generated-app-layout.md) — What `gofra
   new` produces.
 - [runtime/config](../runtime/config.md) — Configuration loading used by

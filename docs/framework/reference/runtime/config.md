@@ -30,9 +30,11 @@ wins):
 3. Environment variables
 4. CLI flags (parsed from `args`)
 
+Struct fields must carry `koanf:"..."` tags for correct key mapping.
+
 If `*T` implements `interface{ Validate() error }`, validation runs
-automatically after loading. Returns the validated config or the first error
-encountered.
+automatically after unmarshalling. Returns the validated config or the first
+error encountered.
 
 ### LoadOption
 
@@ -42,12 +44,12 @@ type LoadOption func(*loadSettings)
 
 | Option | Effect | Default |
 |--------|--------|---------|
-| `WithConfigPath(path string)` | Sets the YAML config file path | `"gofra.yaml"` |
-| `WithEnvPrefix(prefix string)` | Sets the environment variable prefix | `"GOFRA_"` |
-| `WithFlags(flags *flag.FlagSet)` | Provides a pflag.FlagSet for CLI flag overrides | auto-created |
-| `WithoutYAML()` | Disables YAML file loading | YAML enabled |
-| `WithoutEnv()` | Disables environment variable loading | env enabled |
-| `WithoutFlags()` | Disables CLI flag loading | flags enabled |
+| `WithConfigPath(path)` | Sets the default YAML config file path. Can be overridden by the `GOFRA_CONFIG` env var. | `"gofra.yaml"` |
+| `WithEnvPrefix(prefix)` | Sets the environment variable prefix. | `"GOFRA_"` |
+| `WithFlags(flags)` | Provides a `pflag.FlagSet` for CLI flag overrides. Only explicitly-set flags take effect. | flags layer skipped |
+| `WithoutYAML()` | Disables YAML file loading entirely. | YAML enabled |
+| `WithoutEnv()` | Disables environment variable loading. | env enabled |
+| `WithoutFlags()` | Disables CLI flag loading even when a FlagSet was provided. | flags enabled |
 
 ### Resolver and Binding
 
@@ -59,14 +61,31 @@ type Resolver[T any] interface {
 type Binder[C, T any] func(*C) (*T, error)
 type Mutator[T any]   func(context.Context, *http.Request, *T) error
 type Option[T any]    func(*settings[T])
+```
 
+```go
 func NewResolver[C, T any](source *C, bind Binder[C, T], opts ...Option[T]) Resolver[T]
+```
+
+Creates a resolver that binds a source config struct to an output type.
+The binder is called on every `Resolve()` call.
+
+```go
 func WithMutator[T any](mutator Mutator[T]) Option[T]
 ```
 
-`NewResolver` creates a resolver that binds a source config struct to an
-output type. Mutators run after binding to modify the resolved config
+Adds a mutator that runs after binding to modify the resolved config
 per-request (e.g., injecting request-specific values).
+
+### Sentinel Errors
+
+```go
+var ErrNilSource = errors.New("runtimeconfig: source is nil")
+var ErrNilBinder = errors.New("runtimeconfig: binder is nil")
+var ErrNilValue  = errors.New("runtimeconfig: binder returned nil value")
+```
+
+Returned by `Resolve()` when the resolver is misconfigured.
 
 ### HTTP Handler
 
@@ -75,12 +94,12 @@ func Handler[T any](resolver Resolver[T]) http.Handler
 func HandlerWithOptions[T any](resolver Resolver[T], opts HandlerOptions) http.Handler
 ```
 
-Returns an HTTP handler that serves the resolved config as a JavaScript
-snippet, assigning it to a global variable on `window`.
+Returns an HTTP handler that resolves the config on each request, serializes
+it to JSON, and serves it as a JavaScript snippet.
 
 ```go
 type HandlerOptions struct {
-    GlobalName string
+    GlobalName string // defaults to DefaultGlobalName
 }
 ```
 
@@ -93,43 +112,100 @@ type HandlerOptions struct {
 
 ## Defaults
 
-- Config file path: `gofra.yaml`
-- Environment variable prefix: `GOFRA_`
-- HTTP path: `/_gofra/config.js`
-- JavaScript global: `window.__GOFRA_CONFIG__`
+| Setting | Default |
+|---------|---------|
+| Config file path | `gofra.yaml` |
+| Config path env var | `GOFRA_CONFIG` |
+| Environment variable prefix | `GOFRA_` |
+| HTTP path | `/_gofra/config.js` |
+| JavaScript global | `window.__GOFRA_CONFIG__` |
 
 ## Behavior
+
+### YAML File Loading
+
+The YAML file path defaults to `gofra.yaml` but can be overridden by setting
+the `GOFRA_CONFIG` environment variable. If the file does not exist, loading
+silently succeeds and proceeds to the next layer. If the file exists but
+cannot be parsed, `Load` returns an error.
 
 ### Environment Variable Mapping
 
 Environment variables map to config struct fields using the configured prefix.
 Nesting is expressed with double underscores (`__`). Single underscores are
-preserved as literal characters.
+preserved as literal characters within a key segment. After removing the prefix,
+keys are lowercased.
 
 ```
-GOFRA_APP__PORT=4000    → app.port = 4000
-GOFRA_APP_NAME=myapp    → app_name = "myapp"
+GOFRA_APP__PORT=4000       → app.port = 4000
+GOFRA_APP__NAME=myapp      → app.name = "myapp"
+GOFRA_PUBLIC__APP_NAME=x   → public.app_name = "x"
 ```
 
-### Config Serving
+### CLI Flag Overrides
 
-The HTTP handler resolves the config on each request, serializes it to JSON,
-and wraps it in a JavaScript assignment:
+When a `pflag.FlagSet` is provided via `WithFlags`, only flags that were
+explicitly set on the command line override config values. Flags that were
+not set are ignored, so default values in the FlagSet do not overwrite
+YAML or env values.
+
+If no FlagSet is provided, the flags layer is skipped entirely.
+
+### Config HTTP Handler
+
+The handler accepts `GET` and `HEAD` methods. Other methods receive
+`405 Method Not Allowed` with an `Allow: GET, HEAD` header.
+
+Response headers:
+
+| Header | Value |
+|--------|-------|
+| `Content-Type` | `application/javascript; charset=utf-8` |
+| `Cache-Control` | `no-store` |
+
+For `GET` requests, the body is a JavaScript assignment:
 
 ```javascript
-window.__GOFRA_CONFIG__ = {"app":{"port":4000}};
+window.__GOFRA_CONFIG__ = {"appName":"myapp","apiBaseUrl":"http://localhost:3000"};
 ```
 
-The frontend loads this via a `<script>` tag.
+For `HEAD` requests, the status code is `200` but the body is omitted.
+
+If the resolver is `nil`, or resolution/JSON serialization fails, the handler
+returns `500 Internal Server Error` with a plain-text body.
+
+### Validation
+
+If the config struct pointer implements `Validate() error`, `Load` calls it
+after unmarshalling. Errors are wrapped as
+`runtimeconfig: validate: <original error>`.
+
+### Error Wrapping
+
+All errors from `Load` are prefixed with `runtimeconfig:` and a phase
+identifier:
+
+| Phase | Prefix |
+|-------|--------|
+| Struct defaults | `runtimeconfig: load defaults:` |
+| YAML parsing | `runtimeconfig: load <path>:` |
+| Env loading | `runtimeconfig: load env:` |
+| Flag parsing | `runtimeconfig: parse flags:` |
+| Flag loading | `runtimeconfig: load flags:` |
+| Unmarshalling | `runtimeconfig: unmarshal:` |
+| Validation | `runtimeconfig: validate:` |
 
 ## Errors and Edge Cases
 
-- If the YAML file does not exist and YAML loading is enabled, `Load` returns
-  an error.
-- If `Validate()` is implemented and returns an error, `Load` returns that
-  error.
-- If environment variable parsing fails for a typed field, `Load` returns an
-  error.
+- If the YAML file does not exist, loading silently succeeds (the struct
+  defaults and subsequent layers still apply).
+- If the YAML file exists but is malformed, `Load` returns an error.
+- If `Validate()` returns an error, `Load` returns it wrapped.
+- `Resolve()` returns `ErrNilSource` if the source pointer is nil.
+- `Resolve()` returns `ErrNilBinder` if the binder function is nil.
+- `Resolve()` returns `ErrNilValue` if the binder returns a nil pointer.
+- Nil `LoadOption` values are safely ignored.
+- Nil `Option[T]` values are safely ignored.
 
 ## Examples
 
@@ -159,5 +235,7 @@ cfg, err := runtimeconfig.Load(Config{
 ## Related Pages
 
 - [runtime/serve](serve.md) — Uses the loaded config for server address.
+- [Config Generator](../cli/generate-config.md) — Generates typed config
+  structs and a `Load()` wrapper from protobuf schemas.
 - [Generated App Layout](../starter/generated-app-layout.md) — Shows config
   usage in the starter app.

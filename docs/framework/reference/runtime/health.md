@@ -23,7 +23,7 @@ type CheckFunc func(context.Context) error
 ```
 
 Reports whether a dependency is healthy. Return `nil` for healthy, a non-nil
-error for failure.
+error for failure. The context carries a 2-second timeout per check.
 
 ```go
 type Check struct {
@@ -32,14 +32,15 @@ type Check struct {
 }
 ```
 
-Pairs a human-readable name with a health check function.
+Pairs a human-readable name with a health check function. If `Fn` is `nil`,
+the check is treated as healthy (`"ok"`).
 
 ```go
 type Checker struct { /* unexported fields */ }
 ```
 
 Manages startup, liveness, and readiness state and exposes HTTP handlers for
-each probe.
+each probe. Thread-safe — all state transitions use atomic operations.
 
 ### Functions
 
@@ -48,7 +49,8 @@ func New(checks ...Check) *Checker
 ```
 
 Creates a `Checker` with the given readiness checks. Checks are evaluated in
-order on every readiness probe request.
+order on every readiness probe request. Passing no checks creates a checker
+with no dependency checks (readiness depends only on startup/shutdown state).
 
 ```go
 func (c *Checker) MarkStarted()
@@ -61,8 +63,9 @@ and readiness probes return 503.
 func (c *Checker) SetNotReady()
 ```
 
-Forces the readiness probe to return 503 regardless of check results. Used
-during graceful shutdown to drain traffic before stopping.
+Forces the readiness probe to return 503 regardless of check results. This is
+permanent — there is no `SetReady()` to reverse it. Intended for use during
+graceful shutdown.
 
 ```go
 func (c *Checker) StartupHandler() http.Handler
@@ -70,7 +73,9 @@ func (c *Checker) LivenessHandler() http.Handler
 func (c *Checker) ReadinessHandler() http.Handler
 ```
 
-Return HTTP handlers for each probe type.
+Return HTTP handlers for each probe type. All handlers accept `GET` and `HEAD`
+methods only; other methods receive `405 Method Not Allowed` with an
+`Allow: GET, HEAD` header.
 
 ### Constants
 
@@ -82,45 +87,70 @@ Return HTTP handlers for each probe type.
 
 ## Defaults
 
-- Startup path: `/startupz`
-- Liveness path: `/livez`
-- Readiness path: `/readyz`
-- All probes return `503 Service Unavailable` until `MarkStarted()` is called.
+| Setting | Value |
+|---------|-------|
+| Startup path | `/startupz` |
+| Liveness path | `/livez` |
+| Readiness path | `/readyz` |
+| Per-check timeout | 2 seconds |
+| Content-Type | `application/json` |
 
 ## Behavior
 
+### Response Format
+
+All probes return JSON with `Content-Type: application/json`. For `HEAD`
+requests, the status code is set but the body is omitted.
+
 ### Startup Probe
 
-Returns `200 OK` after `MarkStarted()` has been called. Returns
-`503 Service Unavailable` before that. No dependency checks are executed.
+| State | Status | Body |
+|-------|--------|------|
+| Before `MarkStarted()` | `503` | `{"status":"starting"}` |
+| After `MarkStarted()` | `200` | `{"status":"started"}` |
 
 ### Liveness Probe
 
-Always returns `200 OK` once started. Does not check external dependencies.
-This tells the orchestrator the process is alive and not deadlocked.
+| State | Status | Body |
+|-------|--------|------|
+| Always | `200` | `{"status":"alive"}` |
+
+The liveness probe always returns 200 regardless of startup state. It does not
+check external dependencies. The only signal is whether the process can
+respond to HTTP at all.
 
 ### Readiness Probe
 
-Returns `200 OK` if all of the following are true:
+| State | Status | Body |
+|-------|--------|------|
+| Before `MarkStarted()` | `503` | `{"status":"starting"}` |
+| After `SetNotReady()` | `503` | `{"status":"shutting_down"}` |
+| All checks pass | `200` | `{"status":"ready","checks":{"name":"ok",...}}` |
+| Any check fails | `503` | `{"status":"not_ready","checks":{"name":"error message",...}}` |
+| No checks registered | `200` | `{"status":"ready"}` |
 
-1. `MarkStarted()` has been called.
-2. `SetNotReady()` has not been called.
-3. All registered `Check` functions return `nil`.
+When checks are registered, the `checks` field is a map of check name to
+result string (`"ok"` or the error message).
 
-Returns `503 Service Unavailable` otherwise. Checks run in order on every
-request; the first failure short-circuits.
+**All checks run on every request** — a failing check does not short-circuit
+evaluation of subsequent checks. This means the response always reports the
+status of every registered check, making it useful for diagnostics.
 
-### Response Format
+Each check runs with a 2-second context timeout. If a check does not return
+within 2 seconds, the context is cancelled.
 
-All probes return plain-text bodies: `"ok\n"` for 200, `"not ready\n"` or
-`"not started\n"` for 503.
+When no checks are registered, the `checks` field is omitted from the
+response entirely.
 
 ## Errors and Edge Cases
 
 - If a `CheckFunc` panics, the panic propagates to the HTTP server's recovery
-  middleware.
-- Checks with the same name are allowed but may make debugging harder.
-- `SetNotReady()` is permanent — there is no `SetReady()` to reverse it.
+  middleware (if any).
+- If a check's `Fn` is `nil`, it is treated as healthy and reports `"ok"`.
+- Checks with the same name are allowed but the last one's result wins in
+  the response map, making earlier results invisible.
+- `SetNotReady()` is permanent — there is no way to reverse it.
+- `MarkStarted()` is idempotent — calling it multiple times is safe.
 
 ## Examples
 
@@ -143,9 +173,32 @@ mux.Handle(runtimehealth.DefaultReadinessPath, checker.ReadinessHandler())
 checker.MarkStarted()
 ```
 
+Example readiness response with checks:
+
+```json
+{
+  "status": "ready",
+  "checks": {
+    "postgres": "ok"
+  }
+}
+```
+
+Example readiness response with a failure:
+
+```json
+{
+  "status": "not_ready",
+  "checks": {
+    "postgres": "connection refused",
+    "redis": "ok"
+  }
+}
+```
+
 ## Related Pages
 
 - [runtime/serve](serve.md) — Integrates with the health checker for
-  graceful shutdown.
+  graceful shutdown via the `Health` interface.
 - [Generated App Layout](../starter/generated-app-layout.md) — Shows health
   check wiring in the starter app.

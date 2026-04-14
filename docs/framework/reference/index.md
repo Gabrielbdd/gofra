@@ -18,6 +18,8 @@ features.
 ## CLI
 
 - [gofra CLI](cli/gofra.md) — Project bootstrapping and code generation.
+- [Config Generator](cli/generate-config.md) — Proto-driven config code
+  generation (`gofra generate config`).
 
 ## Generated App
 

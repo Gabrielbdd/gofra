@@ -471,13 +471,39 @@ func protoNameToGoName(name string) string {
 
 	result := b.String()
 
-	// Common Go naming fixes.
-	result = strings.ReplaceAll(result, "Id", "ID")
-	result = strings.ReplaceAll(result, "Url", "URL")
-	result = strings.ReplaceAll(result, "Dsn", "DSN")
-	result = strings.ReplaceAll(result, "Api", "API")
+	// Common Go naming fixes. Only replace at CamelCase word boundaries
+	// (followed by an uppercase letter or end-of-string) to avoid false
+	// positives like "Idle" → "IDle".
+	for _, fix := range [][2]string{
+		{"Id", "ID"},
+		{"Url", "URL"},
+		{"Dsn", "DSN"},
+		{"Api", "API"},
+	} {
+		result = replaceAtWordBoundary(result, fix[0], fix[1])
+	}
 
 	return result
+}
+
+// replaceAtWordBoundary replaces old with repl only when old appears at a
+// CamelCase word boundary: the character after old is uppercase or
+// end-of-string. This prevents "Idle" matching "Id" → "IDle".
+func replaceAtWordBoundary(s, old, repl string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); {
+		if i+len(old) <= len(s) && s[i:i+len(old)] == old {
+			after := i + len(old)
+			if after == len(s) || unicode.IsUpper(rune(s[after])) {
+				b.WriteString(repl)
+				i = after
+				continue
+			}
+		}
+		b.WriteByte(s[i])
+		i++
+	}
+	return b.String()
 }
 
 func protoKindToGoType(kind protoreflect.Kind, repeated bool) string {

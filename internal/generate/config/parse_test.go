@@ -223,6 +223,31 @@ func TestParseRejectsSecretInPublic(t *testing.T) {
 	}
 }
 
+func TestProtoNameToGoName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"port", "Port"},
+		{"app_name", "AppName"},
+		{"api_base_url", "APIBaseURL"},
+		{"user_id", "UserID"},
+		{"dsn", "DSN"},
+		{"max_conn_idle_time", "MaxConnIdleTime"}, // "idle" must not become "IDle"
+		{"client_id", "ClientID"},
+		{"post_logout_redirect_path", "PostLogoutRedirectPath"},
+		{"auto_migrate", "AutoMigrate"},
+	}
+
+	for _, tt := range tests {
+		if got := protoNameToGoName(tt.input); got != tt.want {
+			t.Errorf("protoNameToGoName(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
 func TestParseDescriptions(t *testing.T) {
 	t.Parallel()
 

@@ -36,7 +36,7 @@ func main() {
 		MaxConns:          cfg.Database.MaxConns,
 		MinConns:          cfg.Database.MinConns,
 		MaxConnLifetime:   parseDuration(cfg.Database.MaxConnLifetime),
-		MaxConnIdleTime:   parseDuration(cfg.Database.MaxConnIDleTime),
+		MaxConnIdleTime:   parseDuration(cfg.Database.MaxConnIdleTime),
 		HealthCheckPeriod: parseDuration(cfg.Database.HealthCheckPeriod),
 	})
 	if err != nil {

@@ -98,12 +98,14 @@ Source doc: [09-errors.md](09-errors.md)
 
 Source doc: [05-database.md](05-database.md)
 
-- [ ] `runtime/database` — pgxpool management and goose migrations
-  - [ ] `Config` struct aligned with pgxpool native knobs (`MaxConns`, `MinConns`, `MaxConnLifetime`, `MaxConnIdleTime`, `HealthCheckPeriod`)
-  - [ ] `runtimedatabase.Open(ctx, Config) (*pgxpool.Pool, error)` — creates pool, applies config overrides, Ping for fail-fast
-  - [ ] `runtimedatabase.Migrate(ctx, *pgxpool.Pool, fs.FS, ...MigrateOption) ([]*goose.MigrationResult, error)` — goose Provider API with session locking
-  - [ ] `runtimedatabase.HealthCheck(*pgxpool.Pool) runtimehealth.CheckFunc` — readiness integration
-  - [ ] Tests (unit + integration)
+- [x] `runtime/database` — pgxpool management and goose migrations
+  - [x] `Config` struct aligned with pgxpool native knobs (`MaxConns`, `MinConns`, `MaxConnLifetime`, `MaxConnIdleTime`, `HealthCheckPeriod`)
+  - [x] `runtimedatabase.Open(ctx, Config) (*pgxpool.Pool, error)` — creates pool, applies config overrides, Ping for fail-fast
+  - [x] `runtimedatabase.Migrate(ctx, *pgxpool.Pool, fs.FS, ...MigrateOption) ([]*goose.MigrationResult, error)` — goose Provider API with session locking
+  - [x] `runtimedatabase.HealthCheck(*pgxpool.Pool) runtimehealth.CheckFunc` — readiness integration
+  - [x] Tests (unit + integration)
+
+**Completed** 2026-04-13, commit `89e59d4` (feat: add runtime/database package with pgxpool management and goose migrations).
 
 ### 1.5 Auth & Authorization
 

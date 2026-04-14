@@ -58,17 +58,30 @@ func main() {
 	}
 
 	// --- Auth ---------------------------------------------------------------
+	// Auth is opt-in: when issuer and audience are both configured, the
+	// middleware validates JWT access tokens on Connect RPC procedures.
+	// When either is empty the middleware is a no-op, so a fresh starter
+	// remains runnable without ZITADEL infrastructure.
 
-	verifier, err := runtimeauth.NewJWTVerifier(ctx, cfg.Auth.Issuer, cfg.Auth.Audience)
-	if err != nil {
-		slog.Error("auth verifier setup failed", "error", err)
-		os.Exit(1)
+	var authMiddleware func(http.Handler) http.Handler
+
+	if cfg.Auth.Issuer != "" && cfg.Auth.Audience != "" {
+		verifier, err := runtimeauth.NewJWTVerifier(ctx, cfg.Auth.Issuer, cfg.Auth.Audience)
+		if err != nil {
+			slog.Error("auth verifier setup failed", "error", err)
+			os.Exit(1)
+		}
+
+		isPublic := runtimeauth.PublicProcedures(
+			// Add public RPC procedures here, e.g.:
+			// "/myapp.v1.PublicService/GetInfo",
+		)
+
+		authMiddleware = runtimeauth.NewMiddleware(verifier, isPublic)
+		slog.Info("auth enabled", "issuer", cfg.Auth.Issuer)
+	} else {
+		slog.Warn("auth disabled: auth.issuer and auth.audience must both be set")
 	}
-
-	isPublic := runtimeauth.PublicProcedures(
-		// Add public RPC procedures here, e.g.:
-		// "/myapp.v1.PublicService/GetInfo",
-	)
 
 	// --- Health & Routing ---------------------------------------------------
 
@@ -83,9 +96,11 @@ func main() {
 	root.Handle(runtimehealth.DefaultLivenessPath, health.LivenessHandler())
 	root.Handle(runtimehealth.DefaultReadinessPath, health.ReadinessHandler())
 
-	// App router — auth middleware protects Connect RPC procedures.
+	// App router — auth middleware protects Connect RPC procedures when enabled.
 	app := chi.NewRouter()
-	app.Use(runtimeauth.NewMiddleware(verifier, isPublic))
+	if authMiddleware != nil {
+		app.Use(authMiddleware)
+	}
 	app.Handle(runtimeconfig.DefaultPath, config.PublicConfigHandler(cfg))
 	app.Handle("/*", web.Handler())
 

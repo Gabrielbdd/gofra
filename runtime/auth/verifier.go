@@ -70,6 +70,11 @@ func NewJWTVerifier(ctx context.Context, issuerURL, audience string, opts ...Opt
 		return nil, fmt.Errorf("runtimeauth: oidc discovery: %w", err)
 	}
 
+	// oidc.IDTokenVerifier is named for ID tokens, but its Verify method is a
+	// generic JWT validator: it checks signature, issuer, audience, and expiry.
+	// It does NOT enforce ID-token-specific claims (nonce, at_hash). Using it
+	// for JWT access tokens is the standard pattern across the Go ecosystem.
+	// ClientID is set to the expected audience of the access token.
 	verifier := provider.Verifier(&oidc.Config{
 		ClientID: audience,
 	})

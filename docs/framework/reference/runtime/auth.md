@@ -166,6 +166,22 @@ For Connect procedures the middleware:
 | Non-Connect paths | Pass through without auth |
 | Connect procedures | Private by default (require valid Bearer token) |
 
+## Starter Integration
+
+Auth is **opt-in** in the generated starter. The starter's `main.go` checks
+`cfg.Auth.Issuer` and `cfg.Auth.Audience` — when either is empty, auth
+middleware is not mounted and the server starts without JWT enforcement. This
+keeps a fresh `gofra new` app runnable before ZITADEL infrastructure is set
+up.
+
+To enable auth, uncomment and configure the `auth` section in `gofra.yaml`:
+
+```yaml
+auth:
+  issuer: "http://localhost:8081"
+  audience: "<ZITADEL project ID for API application>"
+```
+
 ## Behavior
 
 ### Connect Procedure Detection
@@ -234,24 +250,32 @@ rather than silently accepting all requests.
 
 ## Examples
 
-### Verifier setup and middleware wiring
+### Verifier setup and middleware wiring (opt-in)
 
 ```go
-verifier, err := runtimeauth.NewJWTVerifier(ctx,
-    cfg.Auth.Issuer,
-    cfg.Auth.Audience,
-)
-if err != nil {
-    slog.Error("auth verifier setup failed", "error", err)
-    os.Exit(1)
+var authMiddleware func(http.Handler) http.Handler
+
+if cfg.Auth.Issuer != "" && cfg.Auth.Audience != "" {
+    verifier, err := runtimeauth.NewJWTVerifier(ctx,
+        cfg.Auth.Issuer,
+        cfg.Auth.Audience,
+    )
+    if err != nil {
+        slog.Error("auth verifier setup failed", "error", err)
+        os.Exit(1)
+    }
+
+    isPublic := runtimeauth.PublicProcedures(
+        "/blog.v1.PostsService/ListPosts",
+    )
+
+    authMiddleware = runtimeauth.NewMiddleware(verifier, isPublic)
 }
 
-isPublic := runtimeauth.PublicProcedures(
-    "/blog.v1.PostsService/ListPosts",
-)
-
 app := chi.NewRouter()
-app.Use(runtimeauth.NewMiddleware(verifier, isPublic))
+if authMiddleware != nil {
+    app.Use(authMiddleware)
+}
 ```
 
 ### Reading the authenticated user in a handler

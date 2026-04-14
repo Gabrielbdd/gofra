@@ -20,11 +20,15 @@ message Config {
 }
 
 // AuthConfig holds server-side authentication settings for JWT validation.
+// Auth is opt-in: the server skips JWT enforcement when issuer or audience is
+// empty, so a fresh starter remains runnable without ZITADEL infrastructure.
 message AuthConfig {
   // ZITADEL issuer URL used for OIDC discovery and JWKS fetching.
-  string issuer = 1 [(gofra.config.v1.field).default_value.string_value = "http://localhost:8080"];
+  // Leave empty to disable auth (useful during early development).
+  string issuer = 1;
 
-  // Expected audience claim in JWT access tokens (typically the API project ID).
+  // Expected audience claim in JWT access tokens (typically the ZITADEL
+  // project ID for the API application). Leave empty to disable auth.
   string audience = 2;
 }
 
@@ -76,8 +80,8 @@ message PublicConfig {
 
 // PublicAuthConfig holds browser-safe OIDC authentication settings.
 message PublicAuthConfig {
-  // OIDC issuer URL.
-  string issuer = 1 [(gofra.config.v1.field).default_value.string_value = "http://localhost:9000"];
+  // OIDC issuer URL (ZITADEL runs on :8081 in the default docker-compose setup).
+  string issuer = 1 [(gofra.config.v1.field).default_value.string_value = "http://localhost:8081"];
 
   // OIDC browser client ID.
   string client_id = 2 [(gofra.config.v1.field).default_value.string_value = "__GOFRA_APP_NAME__-web"];

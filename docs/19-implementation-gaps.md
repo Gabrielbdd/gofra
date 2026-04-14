@@ -117,12 +117,14 @@ Implementation note: review the deferred proposal in
 [docs/project/auth-authz-mvp-proposal.md](project/auth-authz-mvp-proposal.md)
 for the broader auth/authz package split and scope boundaries.
 
-- [x] `runtime/auth` — JWT validation and context
+- [x] `runtime/auth` — JWT validation and context (authn slice; User has ID only)
   - [x] `auth.NewJWTVerifier(ctx, issuerURL, audience)` — OIDC discovery + JWKS-backed verifier
   - [x] `auth.WithUser(ctx, user)` / `auth.UserFromContext(ctx)` — context accessors
-  - [x] `User` struct (ID)
+  - [x] `User` struct (ID only — Email, OrgID, Roles deferred to authz slice)
   - [x] Auth HTTP middleware (extract Bearer, validate, set context)
   - [x] Public RPC allowlist (private-by-default via `ProcedureMatcher`)
+  - [ ] Expand `User` to include Email, OrgID, Roles (depends on authz slice)
+  - [ ] Richer `AuthConfig` fields per 06-configuration.md (ServiceAccount, BrowserTokenStore, etc.)
 - [ ] `runtime/authz` — permission enforcement
   - [ ] `authz.HasPermission(roles []string, perm Permission) bool`
   - [ ] Static `RolePermissions` map pattern

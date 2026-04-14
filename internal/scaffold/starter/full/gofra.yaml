@@ -8,6 +8,7 @@ database:
   dsn: "postgres://postgres:postgres@localhost:5432/__GOFRA_APP_NAME__?sslmode=disable"
   auto_migrate: true
 
-auth:
-  issuer: "http://localhost:8080"
-  audience: "__GOFRA_APP_NAME__-api"
+# Auth is opt-in. Uncomment and configure once ZITADEL is running.
+# auth:
+#   issuer: "http://localhost:8081"
+#   audience: "<ZITADEL project ID for API application>"

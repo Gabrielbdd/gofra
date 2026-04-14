@@ -20,6 +20,19 @@ runs natively (not in Docker) for fast iteration — hot reload with `air` for
 Go and HMR with Vite for React. Infrastructure runs in Docker for isolation
 and reproducibility.
 
+## Implementation Status
+
+The generated starter currently ships only the PostgreSQL slice of this design:
+
+- root-level `compose.yaml`
+- `scripts/compose.sh` to pick Docker Compose or Podman Compose
+- `scripts/load-env.sh` to share DB settings across Compose, goose, and app runtime
+- `mise run infra`, `infra:stop`, `infra:reset`, and `infra:logs`
+- pinned official Postgres image `postgres:18.3-alpine3.23`
+
+Restate, Zitadel, and Jaeger remain planned expansion items. The rest of this
+document still describes the target full-stack local environment.
+
 ---
 
 ## Design Principles

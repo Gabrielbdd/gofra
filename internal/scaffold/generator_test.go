@@ -32,11 +32,16 @@ func TestGenerateCreatesRunnableStarter(t *testing.T) {
 	}
 
 	for _, rel := range []string{
+		".env.example",
 		"go.mod",
+		"compose.yaml",
 		"mise.toml",
 		"README.md",
 		"cmd/app/main.go",
 		"proto/myapp/config/v1/config.proto",
+		"scripts/compose.sh",
+		"scripts/load-env.sh",
+		"scripts/wait-for-postgres.sh",
 		"web/embed.go",
 		"web/index.html",
 		"sqlc.yaml",

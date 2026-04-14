@@ -352,9 +352,10 @@ Today `gofra new` copies one minimal runnable starter that includes:
   annotations and a `public` subtree for browser-safe runtime config
 - `web/embed.go` and `web/index.html` — minimal embedded web shell
 - `gofra.yaml` — project config overrides (app name, port)
+- `compose.yaml` — local Postgres for development
+- `scripts/compose.sh` and `scripts/load-env.sh` — Compose engine detection and shared DB env wiring
 - `go.mod` — module with framework dependency and chi
-- `mise.toml` — `generate` task (runs `gofra generate config` from proto)
-  and `dev` task
+- `mise.toml` — `generate`, `infra`, `migrate`, and `dev` tasks
 
 After `mise run generate`, the starter also has:
 
@@ -375,11 +376,13 @@ itself.
 ```
 myapp/
 ├── mise.toml                    # Tool versions + task definitions
+├── compose.yaml                 # Local infrastructure for development
 ├── buf.yaml                     # buf module config (proto deps, lint rules)
 ├── buf.gen.yaml                 # buf code generation config
 ├── gofra.yaml                   # Runtime config; browser-safe values live under `public:`
 ├── sqlc.yaml                    # sqlc configuration
 ├── .env                         # Environment-specific secrets
+├── .env.example                 # Starter template for local overrides
 │
 ├── proto/                       # API contract (single source of truth)
 │   └── myapp/
@@ -458,6 +461,11 @@ myapp/
 ├── cmd/
 │   └── app/
 │       └── main.go              # Application entry point
+│
+├── scripts/
+│   ├── compose.sh               # Detect Docker Compose vs Podman Compose
+│   ├── load-env.sh              # Shared DB env defaults for compose + app
+│   └── wait-for-postgres.sh     # Readiness polling for the local DB
 │
 └── tests/
 ```

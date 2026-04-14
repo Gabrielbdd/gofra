@@ -193,11 +193,14 @@ requirement for framework usability.
 typed defaults (`gofra.config.v1.field` annotations) and secret marking.
 `gofra generate config` produces Go structs, flag registration, loading, and
 public config wiring — the starter ships zero hand-written config code.
-`gofra new` does a pure file copy; `mise run generate` handles code generation;
-the developer workflow is `gofra new myapp && cd myapp && mise trust && mise run dev`.
+`gofra new` does a pure file copy; `mise run generate` handles code generation.
+The starter now also ships a pinned Postgres image in `compose.yaml`, Docker or
+Podman-neutral `infra` tasks, and one shared env-loading path for Compose,
+goose, and the app runtime. The developer workflow is
+`gofra new myapp && cd myapp && mise trust && mise run infra && mise run migrate && mise run dev`.
 Browser config comes from `/_gofra/config.js` via the `public`
-subtree convention. Tool/version pinning and Restate endpoint cleanup are
-still open.
+subtree convention. The broader infra image set and Restate endpoint cleanup
+are still open.
 
 ### 9. Operational Baseline
 

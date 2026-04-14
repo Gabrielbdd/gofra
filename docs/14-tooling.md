@@ -81,7 +81,62 @@ This is still the target `mise.toml` shape for generated applications after the
 broader framework contract is implemented. It is not the full task set that the
 framework repo ships today.
 
-### Generated App Task Definitions
+### Current Starter Task Definitions
+
+The generated starter is smaller today, but it now ships a real local infra
+workflow for PostgreSQL:
+
+```toml
+[tasks.generate]
+run = """
+GOFLAGS=-mod=mod go run databit.com.br/gofra/cmd/gofra generate config \
+  -runtime databit.com.br/gofra/runtime/config \
+  proto/<app>/config/v1/config.proto
+go mod tidy
+"""
+
+[tasks.infra]
+run = """
+. ./scripts/load-env.sh
+sh ./scripts/compose.sh up -d
+sh ./scripts/wait-for-postgres.sh
+"""
+
+[tasks."infra:stop"]
+run = """
+. ./scripts/load-env.sh
+sh ./scripts/compose.sh down --remove-orphans
+"""
+
+[tasks."infra:reset"]
+run = """
+. ./scripts/load-env.sh
+sh ./scripts/compose.sh down --volumes --remove-orphans
+"""
+
+[tasks.dev]
+depends = ["generate"]
+run = """
+. ./scripts/load-env.sh
+go run ./cmd/app
+"""
+
+[tasks.migrate]
+run = """
+. ./scripts/load-env.sh
+goose -dir db/migrations postgres "$DATABASE_URL" up
+"""
+```
+
+Two details make this DX coherent:
+
+- `scripts/compose.sh` detects Docker Compose or Podman Compose, so
+  `mise run infra` uses one command surface regardless of the local engine.
+- `scripts/load-env.sh` loads optional `.env` overrides and derives
+  `DATABASE_URL` plus `GOFRA_DATABASE__DSN`, so Compose, goose, and the Go app
+  all see the same local database settings.
+
+### Target Full Generated App Task Definitions
 
 ```toml
 [tasks.gen]
@@ -156,6 +211,20 @@ This keeps the public browser-config contract synchronized across Go and
 TypeScript. The end-user flow is: add a proto field, set `public.*`, regenerate,
 and use the typed field on the frontend.
 
+### Current Starter Workflow
+
+```bash
+mise trust
+mise run infra
+mise run migrate
+mise run dev
+```
+
+`mise run infra` is idempotent: it starts Compose in detached mode and waits
+until the Postgres container becomes healthy. `mise run infra:reset` is the
+clean-room reset path for local development because it removes the named
+volume and lets the app recreate everything from scratch on the next run.
+
 ### Target Generated App Workflow
 
 ```bash
@@ -166,7 +235,8 @@ mise run migrate          # Run migrations
 mise run dev              # Start Go (air) + Vite
 ```
 
-This remains the intended generated-app workflow. `mise run dev` starts both
+This remains the intended full generated-app workflow once the broader stack
+lands. `mise run dev` starts both
 processes, but the browser entrypoint is the Go server on
 `http://localhost:3000`. Go serves API routes and `/_gofra/config.js`
 directly, and proxies frontend pages/assets to Vite for HMR.
@@ -253,13 +323,15 @@ The canonical starter loads runtime config from defaults, `gofra.yaml`,
 
 The generated app ships a `mise.toml` with a `generate` task that runs
 `gofra generate config` via `go run` against the local framework checkout,
-and a `dev` task that depends on `generate` before starting the server.
+an `infra` task that starts the local Postgres dependency via Compose, and a
+`dev` task that depends on `generate` before starting the server.
 The developer workflow is:
 
 ```bash
 gofra new myapp
 cd myapp
 mise trust
+mise run infra      # starts local Postgres through Docker or Podman
 mise run dev        # runs generate, then starts the backend
 ```
 

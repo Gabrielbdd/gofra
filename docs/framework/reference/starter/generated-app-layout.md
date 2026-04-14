@@ -16,9 +16,11 @@ of that generated application.
 
 ```
 <app>/
+├── .env.example               # Optional local overrides for compose + DB tasks
 ├── cmd/
 │   └── app/
 │       └── main.go           # Application entrypoint
+├── compose.yaml              # Local PostgreSQL for development
 ├── config/                   # Generated after running mise run generate
 │   ├── config_gen.go         # Config structs and DefaultConfig()
 │   ├── load_gen.go           # NewFlagSet() and Load()
@@ -37,6 +39,10 @@ of that generated application.
 │       └── config/
 │           └── v1/
 │               └── config.proto  # Configuration schema (protobuf)
+├── scripts/
+│   ├── compose.sh            # Picks Docker Compose or Podman Compose
+│   ├── load-env.sh           # Loads optional .env and derives DB env vars
+│   └── wait-for-postgres.sh  # Waits for Postgres readiness after compose up
 ├── web/
 │   ├── embed.go              # Embeds web assets into the binary
 │   └── index.html            # SPA starter page
@@ -150,6 +156,19 @@ database:
 This file is read by `runtimeconfig.Load` as the YAML layer. It can be
 overridden by environment variables or CLI flags.
 
+### `compose.yaml`
+
+The local infrastructure definition for the generated app. Today it contains
+one Postgres service with:
+
+- a pinned official image tag (`postgres:18.3-alpine3.23`)
+- a named volume (`postgres_data`) so `infra:stop` keeps data
+- a `pg_isready` healthcheck so the `infra` task can wait for readiness
+- environment-variable defaults that line up with `gofra.yaml`
+
+The compose file uses the canonical `compose.yaml` name and is designed to work
+with either Docker Compose or Podman Compose via `scripts/compose.sh`.
+
 ### `mise.toml`
 
 Task runner definitions:
@@ -158,6 +177,10 @@ Task runner definitions:
 |------|-----------|-------------|
 | `generate` | — | Generates config code from proto via `gofra generate config` |
 | `gen:sql` | — | Generates Go code from SQL queries via `sqlc generate` |
+| `infra` | — | Starts local PostgreSQL via Compose and waits until ready |
+| `infra:stop` | — | Stops local infrastructure containers |
+| `infra:reset` | — | Stops local infrastructure and removes volumes |
+| `infra:logs` | — | Tails Postgres logs from the Compose service |
 | `dev` | `generate` | Generates code then runs `go run ./cmd/app` |
 | `migrate` | — | Runs pending database migrations via goose |
 | `migrate:create` | — | Creates a new migration file |
@@ -167,7 +190,31 @@ Task runner definitions:
 
 The `generate` task uses `GOFLAGS=-mod=mod` to allow the local framework
 replace directive to work with `go run`. The `migrate`, `migrate:*`, and
-`seed` tasks require the `DATABASE_URL` environment variable.
+`seed` tasks source `scripts/load-env.sh`, which loads `.env` if present and
+derives `DATABASE_URL` and `GOFRA_DATABASE__DSN` from the shared local DB
+defaults when they are not set explicitly.
+
+### `.env.example`
+
+Optional template for local overrides. It defines the Postgres image tag,
+host/port, credentials, database name, and SSL mode used by:
+
+- `compose.yaml`
+- the goose-based migration and seed tasks
+- `mise run dev` via `GOFRA_DATABASE__DSN`
+
+No `.env` file is required for the out-of-the-box setup. The defaults already
+match the generated `gofra.yaml`.
+
+### `scripts/`
+
+- **`compose.sh`** — Detects `docker compose`, `podman compose`,
+  `docker-compose`, or `podman-compose` and always runs against the app's
+  root `compose.yaml`.
+- **`load-env.sh`** — Loads optional `.env` overrides and exports one derived
+  database URL contract for Compose, goose, and the Go app.
+- **`wait-for-postgres.sh`** — Polls `pg_isready` through Compose until the
+  Postgres service accepts connections.
 
 ### `db/`
 

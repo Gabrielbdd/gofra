@@ -214,3 +214,12 @@
 |---|----------|-----------|-----|
 | 134 | Framework repo has three surfaces: one public CLI, public runtime packages, and a canonical starter | Keeps tooling, app-facing library code, and generated-app contract distinct while preserving one versioned repo and module during the early phase. | [02](02-system-architecture.md) |
 | 138 | Scaffold output contains no generated code | Generated files are derived artifacts that couple `gofra new` to every generator. Config gen moves to `mise run generate` in the generated app. | [14](14-tooling.md) |
+
+## Starter Infra Slice (Decisions #139–142)
+
+| # | Decision | Rationale | Doc |
+|---|----------|-----------|-----|
+| 139 | Generated apps use root `compose.yaml` | Canonical Compose file name. Works with modern Docker Compose and Podman Compose without a Docker-specific file name. | [15](15-docker-compose.md) |
+| 140 | Pin starter Postgres to `postgres:18.3-alpine3.23` | Avoid floating `latest` while staying on the current official stable image line with a small Alpine base. | [15](15-docker-compose.md) |
+| 141 | `scripts/compose.sh` auto-detects Docker vs Podman compose providers | One `mise run infra` command surface across the common local container engines. | [14](14-tooling.md) |
+| 142 | `scripts/load-env.sh` derives one local DB contract for Compose, goose, and app runtime | Prevents config drift between `compose.yaml`, migration tasks, and `go run ./cmd/app`. | [14](14-tooling.md) |

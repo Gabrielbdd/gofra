@@ -19,11 +19,46 @@ outputs = ["db/sqlc/*.go"]
 [tasks.dev]
 description = "Generate and start the backend"
 depends = ["generate"]
-run = "go run ./cmd/app"
+run = """
+. ./scripts/load-env.sh
+go run ./cmd/app
+"""
+
+[tasks.infra]
+description = "Start PostgreSQL with Docker or Podman and wait until ready"
+run = """
+. ./scripts/load-env.sh
+sh ./scripts/compose.sh up -d
+sh ./scripts/wait-for-postgres.sh
+"""
+
+[tasks."infra:stop"]
+description = "Stop infrastructure services"
+run = """
+. ./scripts/load-env.sh
+sh ./scripts/compose.sh down --remove-orphans
+"""
+
+[tasks."infra:reset"]
+description = "Stop infrastructure services and delete their data volumes"
+run = """
+. ./scripts/load-env.sh
+sh ./scripts/compose.sh down --volumes --remove-orphans
+"""
+
+[tasks."infra:logs"]
+description = "Tail infrastructure logs"
+run = """
+. ./scripts/load-env.sh
+sh ./scripts/compose.sh logs -f postgres
+"""
 
 [tasks.migrate]
 description = "Run pending database migrations"
-run = "goose -dir db/migrations postgres $DATABASE_URL up"
+run = """
+. ./scripts/load-env.sh
+goose -dir db/migrations postgres "$DATABASE_URL" up
+"""
 
 [tasks."migrate:create"]
 description = "Create a new migration file"
@@ -31,12 +66,21 @@ run = "goose -dir db/migrations create {{arg(i=0)}} sql"
 
 [tasks."migrate:down"]
 description = "Rollback the last migration"
-run = "goose -dir db/migrations postgres $DATABASE_URL down"
+run = """
+. ./scripts/load-env.sh
+goose -dir db/migrations postgres "$DATABASE_URL" down
+"""
 
 [tasks."migrate:status"]
 description = "Show migration status"
-run = "goose -dir db/migrations postgres $DATABASE_URL status"
+run = """
+. ./scripts/load-env.sh
+goose -dir db/migrations postgres "$DATABASE_URL" status
+"""
 
 [tasks.seed]
 description = "Seed the database with development data"
-run = "goose -dir db/seeds --no-versioning postgres $DATABASE_URL up"
+run = """
+. ./scripts/load-env.sh
+goose -dir db/seeds --no-versioning postgres "$DATABASE_URL" up
+"""

@@ -9,11 +9,29 @@ Restate for durable execution, PostgreSQL for domain data, Zitadel for
 identity, and a React SPA as the default frontend — all shipped as a single
 binary plus required infrastructure.
 
+## Documentation Structure
+
+Gofra has two documentation trees:
+
+- **[User-Facing Documentation](framework/index.md)** — for developers using
+  Gofra in their applications. Organized by Diataxis: tutorials, how-to
+  guides, reference, and explanation. **Reference is the source of truth for
+  current supported behavior.**
+- **[Project Documentation](project/index.md)** and these numbered design
+  documents — for maintainers and contributors. Covers architecture, design
+  decisions, roadmap, and internals.
+
+If you are building an app with Gofra, start at
+[docs/framework/](framework/index.md). If you are contributing to the
+framework itself, continue reading below.
+
 ## How to Read This Documentation
 
-This documentation is the complete engineering design for Gofra. It records
-every architectural decision with its rationale. It is structured for both
-human engineers reading sequentially and AI agents searching for specific topics.
+These numbered documents are the complete engineering design for Gofra. They
+record architectural decisions with rationale and cover both implemented and
+planned behavior. They are **maintainer-facing design material**, not end-user
+reference.
+
 The final document, [V1 Readiness Checklist](18-readiness-checklist.md),
 defines which promises are in scope for a credible v1 release and which claims
 must be softened or deferred until the framework actually solves them.

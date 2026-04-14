@@ -67,6 +67,21 @@ Target workflow:
 
 When editing docs, keep these commands consistent with `docs/14-tooling.md` and `docs/15-docker-compose.md`.
 
+## Documentation Organization
+
+The repository has two documentation trees:
+
+- **`docs/framework/`** — user-facing documentation organized by
+  [Diataxis](https://diataxis.fr/) (tutorials, how-to, reference,
+  explanation). Reference is the source of truth for current supported
+  behavior.
+- **`docs/project/`** — maintainer/contributor documentation. The numbered
+  design documents (`docs/00-index.md` through `docs/19-implementation-gaps.md`)
+  are also maintainer-facing design material, not end-user reference.
+
+See `docs/project/documentation-system.md` for the full documentation system
+design and enforcement rules.
+
 ## Documentation Style & Naming
 
 Write docs as framework design, not feature notes. Be direct, opinionated, and specific about defaults, tradeoffs, and developer workflow. Prefer concrete examples such as `app/services/`, `gofra generate service`, and port numbers. Cross-link related docs and record durable architectural choices in `docs/17-decision-log.md`.

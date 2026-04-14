@@ -21,6 +21,10 @@ run = "env GOCACHE=${GOCACHE:-/tmp/gofra-gocache} go run ./cmd/gofra new {{arg(i
 description = "Create a new app from the canonical starter with an explicit Go module path"
 run = "env GOCACHE=${GOCACHE:-/tmp/gofra-gocache} go run ./cmd/gofra new --module {{arg(i=1)}} {{arg(i=0)}}"
 
+[tasks."docs:guard"]
+description = "Check that public-surface changes include docs/framework/ updates"
+run = "bash scripts/claude/check-docs-stop.sh --ci"
+
 [tasks."smoke:new"]
 description = "Generate a temporary app from the starter and verify it with go test"
 run = '''

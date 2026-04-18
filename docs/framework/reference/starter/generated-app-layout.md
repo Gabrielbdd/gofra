@@ -188,11 +188,11 @@ Task runner definitions:
 | `migrate:status` | — | Shows migration status |
 | `seed` | — | Seeds the database with development data |
 
-The `generate` task uses `GOFLAGS=-mod=mod` to allow the local framework
-replace directive to work with `go run`. The `migrate`, `migrate:*`, and
-`seed` tasks source `scripts/load-env.sh`, which loads `.env` if present and
-derives `DATABASE_URL` and `GOFRA_DATABASE__DSN` from the shared local DB
-defaults when they are not set explicitly.
+The `generate` task uses `GOFLAGS=-mod=mod` so `go run` can bootstrap
+`go.sum` on first invocation before `go mod tidy` finalises it. The
+`migrate`, `migrate:*`, and `seed` tasks source `scripts/load-env.sh`, which
+loads `.env` if present and derives `DATABASE_URL` and `GOFRA_DATABASE__DSN`
+from the shared local DB defaults when they are not set explicitly.
 
 ### `.env.example`
 
@@ -248,15 +248,14 @@ generates Go code into `db/sqlc/` using `pgx/v5`.
 
 ### `go.mod`
 
-The generated `go.mod` includes a local `replace` directive pointing to the
-framework checkout that created the app:
+The generated `go.mod` depends on a published release of the framework:
 
 ```
-replace github.com/Gabrielbdd/gofra => /path/to/gofra
+require github.com/Gabrielbdd/gofra v0.1.0
 ```
 
-This is necessary because the framework is not yet published. Once published,
-this replace directive can be removed.
+There is no `replace` directive. Generated apps resolve the framework through
+the Go module proxy like any other dependency.
 
 ## Dependencies
 
@@ -264,7 +263,7 @@ this replace directive can be removed.
 |------------|---------|---------|
 | `github.com/go-chi/chi/v5` | v5.2.5 | HTTP router |
 | `github.com/spf13/pflag` | v1.0.10 | CLI flag parsing |
-| `github.com/Gabrielbdd/gofra` | v0.0.0 (local) | Framework runtime packages |
+| `github.com/Gabrielbdd/gofra` | v0.1.0 | Framework runtime packages |
 
 ## Runtime Behavior
 

@@ -319,10 +319,10 @@ The canonical starter loads runtime config from defaults, `gofra.yaml`,
 
 - copy the canonical starter into a destination directory
 - rewrite reserved placeholders such as module path, app name, proto package,
-  and the temporary local framework `replace`
+  and the pinned framework module path and version
 
 The generated app ships a `mise.toml` with a `generate` task that runs
-`gofra generate config` via `go run` against the local framework checkout,
+`gofra generate config` via `go run` against the published framework module,
 an `infra` task that starts the local Postgres dependency via Compose, and a
 `dev` task that depends on `generate` before starting the server.
 The developer workflow is:

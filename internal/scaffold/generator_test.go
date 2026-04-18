@@ -11,22 +11,10 @@ import (
 )
 
 func TestGenerateCreatesRunnableStarter(t *testing.T) {
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Getwd() error = %v", err)
-	}
-
-	framework, err := DetectFramework(wd)
-	if err != nil {
-		t.Fatalf("DetectFramework() error = %v", err)
-	}
-
 	destination := filepath.Join(t.TempDir(), "myapp")
 	if err := Generate(Options{
-		Destination:     destination,
-		ModulePath:      "example.com/myapp",
-		FrameworkDir:    framework.Dir,
-		FrameworkModule: framework.Module,
+		Destination: destination,
+		ModulePath:  "example.com/myapp",
 	}); err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -66,7 +54,7 @@ func TestGenerateCreatesRunnableStarter(t *testing.T) {
 		ProtoFile:     protoFile,
 		OutputDir:     filepath.Join(destination, "config"),
 		GoPackage:     "config",
-		RuntimeImport: framework.Module + "/runtime/config",
+		RuntimeImport: FrameworkModule() + "/runtime/config",
 	}); err != nil {
 		t.Fatalf("configgen.Generate() error = %v", err)
 	}

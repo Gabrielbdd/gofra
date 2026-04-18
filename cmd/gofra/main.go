@@ -41,7 +41,6 @@ func runNew(args []string) error {
 	flags.SetOutput(os.Stderr)
 
 	modulePath := flags.String("module", "", "Go module path for the generated application")
-	frameworkDir := flags.String("framework-dir", "", "path to the local gofra framework checkout")
 
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -51,21 +50,14 @@ func runNew(args []string) error {
 	}
 
 	if flags.NArg() != 1 {
-		return fmt.Errorf("usage: gofra new [--module module/path] [--framework-dir /path/to/gofra] <directory>")
+		return fmt.Errorf("usage: gofra new [--module module/path] <directory>")
 	}
 
 	targetDir := flags.Arg(0)
 
-	framework, err := resolveFramework(*frameworkDir)
-	if err != nil {
-		return err
-	}
-
 	opts := scaffold.Options{
-		Destination:     targetDir,
-		ModulePath:      *modulePath,
-		FrameworkDir:    framework.Dir,
-		FrameworkModule: framework.Module,
+		Destination: targetDir,
+		ModulePath:  *modulePath,
 	}
 	if err := scaffold.Generate(opts); err != nil {
 		return err
@@ -98,21 +90,8 @@ func runGenerate(args []string) error {
 	}
 }
 
-func resolveFramework(frameworkDir string) (scaffold.Framework, error) {
-	if frameworkDir != "" {
-		return scaffold.LoadFramework(frameworkDir)
-	}
-
-	wd, err := os.Getwd()
-	if err != nil {
-		return scaffold.Framework{}, err
-	}
-
-	return scaffold.DetectFramework(wd)
-}
-
 func usage(w *os.File) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  gofra new [--module module/path] [--framework-dir /path/to/gofra] <directory>")
+	fmt.Fprintln(w, "  gofra new [--module module/path] <directory>")
 	fmt.Fprintln(w, "  gofra generate config [flags] <proto-file>")
 }

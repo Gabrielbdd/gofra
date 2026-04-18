@@ -12,73 +12,22 @@ import (
 
 const (
 	starterRoot             = "starter/full"
-	defaultFrameworkVersion = "v0.0.0"
+	frameworkModule         = "github.com/Gabrielbdd/gofra"
+	defaultFrameworkVersion = "v0.1.0"
 )
 
 var (
 	//go:embed all:starter/full
 	starterFS embed.FS
 
-	errDestinationRequired     = errors.New("destination is required")
-	errFrameworkDirRequired    = errors.New("framework directory is required")
-	errFrameworkModuleRequired = errors.New("framework module is required")
+	errDestinationRequired = errors.New("destination is required")
 )
 
-type Framework struct {
-	Dir    string
-	Module string
-}
-
 type Options struct {
-	Destination     string
-	ModulePath      string
-	AppName         string
-	ProtoPackage    string
-	FrameworkDir    string
-	FrameworkModule string
-}
-
-func DetectFramework(startDir string) (Framework, error) {
-	dir, err := filepath.Abs(startDir)
-	if err != nil {
-		return Framework{}, err
-	}
-
-	for {
-		framework, err := LoadFramework(dir)
-		if err == nil {
-			return framework, nil
-		}
-
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
-		}
-		dir = parent
-	}
-
-	return Framework{}, fmt.Errorf("could not find gofra framework root from %q", startDir)
-}
-
-func LoadFramework(dir string) (Framework, error) {
-	absDir, err := filepath.Abs(dir)
-	if err != nil {
-		return Framework{}, err
-	}
-
-	if _, err := os.Stat(filepath.Join(absDir, "internal", "scaffold", "starter", "full")); err != nil {
-		return Framework{}, fmt.Errorf("framework root %q does not contain internal/scaffold/starter/full", absDir)
-	}
-
-	modulePath, err := readModulePath(filepath.Join(absDir, "go.mod"))
-	if err != nil {
-		return Framework{}, err
-	}
-
-	return Framework{
-		Dir:    absDir,
-		Module: modulePath,
-	}, nil
+	Destination  string
+	ModulePath   string
+	AppName      string
+	ProtoPackage string
 }
 
 func Generate(opts Options) error {
@@ -95,8 +44,7 @@ func Generate(opts Options) error {
 		"__GOFRA_APP_NAME__":          opts.AppName,
 		"__GOFRA_MODULE__":            opts.ModulePath,
 		"__GOFRA_PROTO_PACKAGE__":     opts.ProtoPackage,
-		"__GOFRA_FRAMEWORK_DIR__":     filepath.ToSlash(opts.FrameworkDir),
-		"__GOFRA_FRAMEWORK_MODULE__":  opts.FrameworkModule,
+		"__GOFRA_FRAMEWORK_MODULE__":  frameworkModule,
 		"__GOFRA_FRAMEWORK_VERSION__": defaultFrameworkVersion,
 	}
 
@@ -141,15 +89,13 @@ func Generate(opts Options) error {
 	return nil
 }
 
+func FrameworkModule() string {
+	return frameworkModule
+}
+
 func fillDefaults(opts Options) (Options, error) {
 	if opts.Destination == "" {
 		return Options{}, errDestinationRequired
-	}
-	if opts.FrameworkDir == "" {
-		return Options{}, errFrameworkDirRequired
-	}
-	if opts.FrameworkModule == "" {
-		return Options{}, errFrameworkModuleRequired
 	}
 
 	absDestination, err := filepath.Abs(opts.Destination)
@@ -166,11 +112,6 @@ func fillDefaults(opts Options) (Options, error) {
 	}
 	if opts.ProtoPackage == "" {
 		opts.ProtoPackage = normalizeProtoPackage(opts.AppName)
-	}
-
-	opts.FrameworkDir, err = filepath.Abs(opts.FrameworkDir)
-	if err != nil {
-		return Options{}, err
 	}
 
 	return opts, nil
@@ -225,29 +166,9 @@ func normalizeProtoPackage(value string) string {
 	return result
 }
 
-func readModulePath(goModPath string) (string, error) {
-	content, err := os.ReadFile(goModPath)
-	if err != nil {
-		return "", err
-	}
-
-	for _, line := range strings.Split(string(content), "\n") {
-		if strings.HasPrefix(line, "module ") {
-			modulePath := strings.TrimSpace(strings.TrimPrefix(line, "module "))
-			if modulePath == "" {
-				return "", fmt.Errorf("go.mod at %q has an empty module path", goModPath)
-			}
-			return modulePath, nil
-		}
-	}
-
-	return "", fmt.Errorf("go.mod at %q does not declare a module path", goModPath)
-}
-
 func replaceTokens(value string, replacements map[string]string) string {
 	for token, replacement := range replacements {
 		value = strings.ReplaceAll(value, token, replacement)
 	}
 	return value
 }
-

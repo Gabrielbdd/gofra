@@ -39,18 +39,12 @@ gofra new [flags] <directory>
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--module` | Derived from directory name | Go module path for the generated app |
-| `--framework-dir` | Auto-detected | Path to local gofra framework checkout |
-
-**Framework detection:** When `--framework-dir` is not provided, the CLI
-walks up the directory tree from the current working directory looking for a
-directory that contains `internal/scaffold/starter/full`. This allows running
-`go run ./cmd/gofra new ../myapp` from within the framework checkout.
 
 **Behavior:**
 
 1. Validates that the target directory is empty or does not exist.
-2. Copies the canonical starter template, replacing template tokens with
-   the app name, module path, and framework references.
+2. Copies the canonical starter template, replacing template tokens with the
+   app name, module path, and the pinned framework module path + version.
 3. Strips `.tmpl` extensions from processed files.
 4. Prints the created path and next steps.
 

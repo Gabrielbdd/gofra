@@ -7,55 +7,16 @@ inspired by Phoenix, Laravel, and Rails. The framework aims to be explicit,
 productive, and operationally robust, with durable execution, typed APIs,
 integrated frontend support, and strong local tooling.
 
-Gofra is co-developed alongside its first real-world product, **Gospa** — an
-open-source PSA (Professional Services Automation) for MSPs. Gospa validates
-the framework in production while informing its design. See
-[Gofra + Gospa](#gofra--gospa) below.
-
 Work in this repository may touch:
 
-- Architecture and product docs in `docs/`
+- Architecture and framework design docs in `docs/`
 - Reusable framework packages under the public `runtime/` surface
 - Generator code under `internal/` and `cmd/`
 - The canonical generated-app starter under `internal/scaffold/starter/`
 
-## Gofra + Gospa
-
-Gospa lives in a **separate repository** at `github.com/Gabrielbdd/gospa`. It
-is not a submodule of this repo. The two projects are wired together only
-through the normal Go module graph: Gospa has `require github.com/Gabrielbdd/gofra vX.Y.Z`
-in its `go.mod`; Gofra has no dependency on Gospa.
-
-For simultaneous local development, an external workspace repo
-(`gospa-workspace`) includes both as git submodules and uses a `go.work` file
-so edits in one resolve immediately in the other — without any `replace`
-directive committed to `go.mod`.
-
-### Rules of direction
-
-- Gospa depends on Gofra (via `go.mod`). Gofra does NOT depend on Gospa.
-- If Gospa needs something new from the framework → build it in Gofra first,
-  then consume it in Gospa.
-- If Gofra evolves a contract → update Gospa to validate it works in a real
-  app.
-- Bugs found via Gospa are fixed in Gofra if they are framework problems, in
-  Gospa if they are product logic.
-
-### When working on Gofra
-
-Focus on generic, reusable framework code. Gospa is context for understanding
-real use cases, not a target for edits from this repo.
-
-### When working on Gospa
-
-Focus on product. Gofra provides the building blocks. If something is missing
-in the framework, build it in Gofra first.
-
-### Gospa blueprint
-
-`docs/psa/index.md` is the product blueprint — market analysis, features,
-architecture, and roadmap. It lives in the Gofra repo because it informs
-framework design decisions.
+This repository contains framework code and framework-facing docs only.
+Consumer applications built on top of Gofra live in their own independent
+repositories and depend on Gofra as a normal Go module.
 
 ## Sources of Truth
 
@@ -69,7 +30,6 @@ authoritative references for architecture, scope, decisions, and progress.
 | `docs/17-decision-log.md` | All numbered architectural decisions with rationale — search before proposing something that may already be decided |
 | `docs/18-readiness-checklist.md` | V1 promises, release blockers, ship gates — the suggested order of work |
 | `docs/19-implementation-gaps.md` | What is documented but not yet implemented — the concrete backlog |
-| `docs/psa/index.md` | PSA product blueprint — market, features, architecture, roadmap |
 | `docs/framework/reference/` | Current-state facts about public surfaces — what exists today |
 
 If a numbered decision in `17-decision-log.md` already covers a topic, follow
@@ -185,8 +145,7 @@ documents two distinct structures that must not be conflated:
 - the **framework repo layout**, where reusable packages such as
   `runtime/config/`, generator internals in `internal/`, codegen entrypoints in
   `cmd/`, and the canonical starter in `internal/scaffold/starter/` live
-- the **generated app layout**, which is the target output of future
-  `gofra new`
+- the **generated app layout**, which is the target output of `gofra new`
 
 When adding implementation, prefer this sequence:
 

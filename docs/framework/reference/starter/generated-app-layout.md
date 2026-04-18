@@ -16,7 +16,12 @@ of that generated application.
 
 ```
 <app>/
-├── .env.example               # Optional local overrides for compose + DB tasks
+├── .dockerignore             # Build context exclusions for docker build
+├── .env.example              # Optional local overrides for compose + DB tasks
+├── .github/
+│   └── workflows/
+│       └── ci.yml            # Test + build + docker image on PR and main
+├── .gitignore
 ├── cmd/
 │   └── app/
 │       └── main.go           # Application entrypoint
@@ -46,11 +51,11 @@ of that generated application.
 ├── web/
 │   ├── embed.go              # Embeds web assets into the binary
 │   └── index.html            # SPA starter page
-├── go.mod                    # Go module with local framework replace
+├── Dockerfile                # Multi-stage build → distroless static image
+├── go.mod                    # Go module manifest
 ├── gofra.yaml                # Default runtime configuration
 ├── mise.toml                 # Task runner definitions
 ├── sqlc.yaml                 # sqlc code generation configuration
-├── .gitignore
 └── README.md
 ```
 
@@ -246,6 +251,23 @@ generates Go code into `db/sqlc/` using `pgx/v5`.
   binary. Exports a `Handler()` function that returns an
   `http.FileServerFS` handler.
 
+### Deployment artifacts
+
+Three files ship in every generated app so the code can be tested, built as a
+binary, built as a container image, and exercised in CI from day one:
+
+- **`Dockerfile`** — Multi-stage build. A `golang:1.25-alpine` builder stage
+  produces a static binary with CGO disabled; the runtime stage is
+  `gcr.io/distroless/static-debian12:nonroot`. The resulting image has no
+  shell and runs as a non-root user.
+- **`.dockerignore`** — Excludes the `.git` directory, `.env` files, editor
+  state, and pre-built binaries from the Docker build context.
+- **`.github/workflows/ci.yml`** — Runs `mise run test`, `mise run build`,
+  and a `docker build` step (via `docker/build-push-action@v6` with
+  `push: false`) on every pull request and every push to `main`.
+
+See [Deployment](deployment.md) for the full definitions of each artifact.
+
 ### `go.mod`
 
 The generated `go.mod` depends on a published release of the framework:
@@ -304,3 +326,5 @@ checker wired as the `Health` provider. See
   and health check.
 - [runtime/health](../runtime/health.md) — Health check probes.
 - [runtime/serve](../runtime/serve.md) — Server lifecycle.
+- [Deployment](deployment.md) — Dockerfile, `.dockerignore`, and CI workflow
+  reference.

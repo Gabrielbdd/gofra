@@ -6,14 +6,18 @@ features.
 
 ## Runtime Packages
 
+- [runtime/auth](runtime/auth.md) — JWT bearer-token authentication and
+  private-by-default Connect procedure gating.
 - [runtime/config](runtime/config.md) — Configuration loading with
   four-layer precedence and frontend config serving.
+- [runtime/database](runtime/database.md) — PostgreSQL pool, embedded goose
+  migrations, and readiness check helpers.
+- [runtime/errors](runtime/errors.md) — Connect RPC error helpers with
+  structured error details.
 - [runtime/health](runtime/health.md) — Kubernetes-aligned health check
   probes (startup, liveness, readiness).
 - [runtime/serve](runtime/serve.md) — Graceful HTTP server lifecycle with
   signal handling and shutdown sequencing.
-- [runtime/errors](runtime/errors.md) — Connect RPC error helpers with
-  structured error details.
 
 ## CLI
 

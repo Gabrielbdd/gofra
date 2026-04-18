@@ -71,3 +71,18 @@ plugins:
 
 nav:
   - Home: index.md
+  - Reference:
+      - reference/index.md
+      - Runtime:
+          - runtime/auth: reference/runtime/auth.md
+          - runtime/config: reference/runtime/config.md
+          - runtime/database: reference/runtime/database.md
+          - runtime/errors: reference/runtime/errors.md
+          - runtime/health: reference/runtime/health.md
+          - runtime/serve: reference/runtime/serve.md
+      - CLI:
+          - gofra: reference/cli/gofra.md
+          - gofra generate config: reference/cli/generate-config.md
+      - Generated App:
+          - Layout: reference/starter/generated-app-layout.md
+          - Deployment: reference/starter/deployment.md

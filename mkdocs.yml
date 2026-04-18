@@ -71,6 +71,12 @@ plugins:
 
 nav:
   - Home: index.md
+  - Tutorials:
+      - tutorials/index.md
+      - 1. Your first Gofra app: tutorials/01-your-first-gofra-app.md
+      - 2. Verify your app is alive: tutorials/02-verify-your-app.md
+      - 3. Understanding what was generated: tutorials/03-understanding-what-was-generated.md
+      - 4. Changing configuration: tutorials/04-changing-configuration.md
   - Reference:
       - reference/index.md
       - Runtime:

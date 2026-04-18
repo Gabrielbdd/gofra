@@ -99,6 +99,18 @@ message types:
 | `app` | `AppConfig` | Server-side settings |
 | `public` | `PublicConfig` | Browser-safe settings served to the frontend |
 | `database` | `DatabaseConfig` | PostgreSQL connection and pool settings |
+| `auth` | `AuthConfig` | Server-side JWT validation settings (opt-in) |
+
+**`AuthConfig`**:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `issuer` | `string` | `""` | OIDC issuer URL used for JWKS fetching; empty disables auth |
+| `audience` | `string` | `""` | Expected JWT audience claim; empty disables auth |
+
+When either field is empty the server logs `auth disabled` and does not
+install the JWT middleware, so a fresh starter is runnable without ZITADEL
+infrastructure.
 
 **`DatabaseConfig`**:
 

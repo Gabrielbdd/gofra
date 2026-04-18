@@ -70,9 +70,34 @@ The starter ships with these `mise` tasks:
 | --- | --- |
 | `mise run generate` | Regenerate config code from the proto schema. |
 | `mise run test` | Run `go test ./...` after regenerating config code. |
-| `mise run build` | Build the application binary to `bin/`. |
+| `mise run build` | Build the application binary to `bin/__GOFRA_APP_NAME__`. |
 | `mise run dev` | Start the backend locally (depends on `generate`). |
 | `mise run infra` | Start local infrastructure (Postgres) via Compose. |
 | `mise run infra:stop` / `infra:reset` / `infra:logs` | Manage local infrastructure. |
 | `mise run migrate` / `migrate:create` / `migrate:down` / `migrate:status` | Manage database migrations via `goose`. |
 | `mise run seed` | Seed the database with development data. |
+
+## Build a container image
+
+The starter ships a multi-stage `Dockerfile` that produces a static,
+distroless binary:
+
+```bash
+docker build -t __GOFRA_APP_NAME__:dev .
+```
+
+The resulting image runs as the non-root `nonroot` user and exposes port
+`3000`. Override the exposed port if you change `app.port` in `gofra.yaml`.
+
+## CI
+
+The starter also includes `.github/workflows/ci.yml`, which on every pull
+request and push to `main`:
+
+1. installs the pinned Go toolchain via `mise`
+2. runs `mise run test`
+3. runs `mise run build`
+4. builds the Docker image locally (without pushing)
+
+That workflow is intentionally quiet on publishing — pushing to a registry
+is an opt-in concern, added per project when deployment actually needs it.

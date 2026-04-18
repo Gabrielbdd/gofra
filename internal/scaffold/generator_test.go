@@ -33,6 +33,9 @@ func TestGenerateCreatesRunnableStarter(t *testing.T) {
 
 	for _, rel := range []string{
 		".env.example",
+		".dockerignore",
+		".github/workflows/ci.yml",
+		"Dockerfile",
 		"go.mod",
 		"compose.yaml",
 		"mise.toml",
@@ -78,13 +81,22 @@ func TestGenerateCreatesRunnableStarter(t *testing.T) {
 		}
 	}
 
-	cmd := exec.Command("go", "test", "./...")
-	cmd.Dir = destination
-	cmd.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=-mod=mod")
+	isolatedEnv := append(os.Environ(), "GOWORK=off", "GOFLAGS=-mod=mod")
 
-	output, err := cmd.CombinedOutput()
-	if err != nil {
+	testCmd := exec.Command("go", "test", "./...")
+	testCmd.Dir = destination
+	testCmd.Env = isolatedEnv
+
+	if output, err := testCmd.CombinedOutput(); err != nil {
 		t.Fatalf("go test ./... failed: %v\n%s", err, output)
+	}
+
+	buildCmd := exec.Command("go", "build", "-o", filepath.Join(t.TempDir(), "app"), "./cmd/app")
+	buildCmd.Dir = destination
+	buildCmd.Env = isolatedEnv
+
+	if output, err := buildCmd.CombinedOutput(); err != nil {
+		t.Fatalf("go build ./cmd/app failed: %v\n%s", err, output)
 	}
 }
 

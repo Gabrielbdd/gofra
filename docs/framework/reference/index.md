@@ -25,3 +25,5 @@ features.
 
 - [Generated App Layout](starter/generated-app-layout.md) — Structure and
   conventions of a `gofra new` application.
+- [Deployment](starter/deployment.md) — Dockerfile, `.dockerignore`, and CI
+  workflow shipped with every generated app.

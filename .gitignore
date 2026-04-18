@@ -4,3 +4,6 @@ gofra-app
 
 examples/basic/web/dist/
 examples/basic/web/node_modules/
+
+# MkDocs build output
+site/

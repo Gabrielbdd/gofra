@@ -1,5 +1,6 @@
 [tools]
 go = "1.25"
+python = "3.12"
 
 [tasks.test]
 description = "Run the framework test suite"
@@ -24,6 +25,20 @@ run = "env GOCACHE=${GOCACHE:-/tmp/gofra-gocache} go run ./cmd/gofra new --modul
 [tasks."docs:guard"]
 description = "Check that public-surface changes include docs/framework/ updates"
 run = "bash scripts/claude/check-docs-stop.sh --ci"
+
+[tasks."docs:deps"]
+description = "Install Python dependencies required to build the public docs site"
+run = "pip install --quiet --disable-pip-version-check -r docs-requirements.txt"
+
+[tasks."docs:build"]
+description = "Build the public documentation site in strict mode"
+depends = ["docs:deps"]
+run = "mkdocs build --strict"
+
+[tasks."docs:serve"]
+description = "Serve the public documentation site locally with live reload"
+depends = ["docs:deps"]
+run = "mkdocs serve"
 
 [tasks."smoke:new"]
 description = "Generate a temporary app from the starter and verify it with go test"

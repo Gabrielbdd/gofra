@@ -232,3 +232,11 @@
 | 144 | Starter ships `Dockerfile`, `.dockerignore`, and `.github/workflows/ci.yml` by default | Day-1 deployability is a framework promise: a freshly generated app must be runnable, buildable as a binary, buildable as an image, and testable in CI without extra tooling decisions. | [14](14-tooling.md) |
 | 145 | Starter Dockerfile uses multi-stage build with `gcr.io/distroless/static-debian12:nonroot` as runtime base | Static binary, no shell, non-root by default, minimal attack surface. Works without CGO. | [14](14-tooling.md) |
 | 146 | Generated apps depend on a published Gofra release through the Go module proxy — no `replace` directive in `go.mod.tmpl` | A generated app must build reproducibly from its own `go.mod` alone, without depending on the filesystem layout that created it. Any local override for simultaneous framework development is the caller's responsibility, not a framework-committed coupling. | [14](14-tooling.md) |
+
+## Public Documentation Site (Decisions #147–149)
+
+| # | Decision | Rationale | Doc |
+|---|----------|-----------|-----|
+| 147 | MkDocs + Material for the public documentation site | Content is already Markdown under `docs/framework/` and already Diataxis-organized. MkDocs builds a static site with zero frontend app, and Material provides search, navigation, and code-copy out of the box. No runtime dependency is added to the framework itself. | [documentation-system](project/documentation-system.md) |
+| 148 | GitHub Pages deployment via GitHub Actions on `main` | The repo is already public on GitHub. Actions + Pages removes any separate hosting contract, keeps deploys reproducible from source, and requires no external credentials beyond the repo itself. PRs run `mkdocs build --strict` to catch broken links and dangling references before merge. | [documentation-system](project/documentation-system.md) |
+| 149 | The public site publishes only tutorials and reference in v0 — no stubs, no placeholders | The cost of publishing empty How-to and Explanation sections is worse than not publishing them: readers click, find nothing, and lose trust. How-to and Explanation enter the nav only when each has real content that reflects behavior shipping today. | [documentation-system](project/documentation-system.md) |

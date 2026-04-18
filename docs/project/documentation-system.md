@@ -114,3 +114,44 @@ Reference pages must not include:
 | Exact facts about an API, command, or config | `reference/` |
 | Why something works this way | `explanation/` |
 | Contributor process, internals, roadmap | `docs/project/` |
+
+## Publishing
+
+The public documentation site is built from `docs/framework/` only. Project
+and numbered design documents under `docs/` are maintainer material and are
+never published.
+
+### Tooling
+
+The site is built with [MkDocs](https://www.mkdocs.org/) and the
+[Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) theme.
+Configuration lives in `mkdocs.yml` at the repo root. Python dependencies are
+pinned in `docs-requirements.txt` and installed through `mise run docs:deps`.
+
+Local workflow:
+
+```bash
+mise run docs:serve    # live preview at http://localhost:8000
+mise run docs:build    # strict build — fails on broken links or nav drift
+```
+
+The build runs in strict mode. Any broken internal link, missing anchor, or
+page referenced in `nav` but absent from disk fails the build.
+
+### Scope contract
+
+Only pages with real, current-state content appear in `mkdocs.yml` nav. A
+stub or placeholder page is never published. If a Diataxis section has no
+real content yet, the section is absent from the site entirely — the reader
+sees nothing instead of an empty promise.
+
+### Deployment
+
+Deployment is automated through GitHub Actions (`.github/workflows/docs.yml`):
+
+- **On pull request** — the workflow runs `mkdocs build --strict`. If the
+  site does not build, the PR cannot merge.
+- **On push to `main`** — the workflow builds the site and deploys it to
+  GitHub Pages via `actions/deploy-pages`.
+
+The site is served at <https://gabrielbdd.github.io/gofra/>.

@@ -31,6 +31,6 @@ tradeoffs and design rationale.
 
 ---
 
-Looking for contributor or maintainer documentation? See
-[Project Docs](../project/index.md) and the numbered design documents in
-`docs/`.
+Looking for contributor or maintainer documentation? See the `docs/project/`
+directory and the numbered design documents in the
+[Gofra source tree](https://github.com/Gabrielbdd/gofra/tree/main/docs).

@@ -1,36 +1,56 @@
-# Gofra Framework Documentation
+# Gofra
 
-Welcome to the Gofra user documentation. This is the primary resource for
-developers building applications with the Gofra framework.
+Gofra is a batteries-included Go framework inspired by Phoenix, Laravel,
+and Rails. It is designed to be explicit, productive, and operationally
+robust, with durable execution, typed APIs, integrated frontend support,
+and strong local tooling.
 
-This documentation follows the [Diataxis](https://diataxis.fr/) framework
-and is organized into four sections:
+!!! note "Alpha"
+    Gofra is in active development. Public surfaces are stable enough to
+    use in hobby and exploratory projects, but any API may change before
+    a v1 release.
 
-## Sections
+## Current scope of these docs
 
-### [Tutorials](tutorials/index.md)
+This site documents **only what ships today**. Pages appear only when they
+describe real, current-state behavior. Empty placeholders are deliberately
+not published — a missing page means that surface is not yet stable enough
+to commit to.
 
-Learning-oriented guides that walk you through building something with Gofra
-for the first time. Start here if you are new to the framework.
+What is covered:
 
-### [How-to Guides](how-to/index.md)
+- **[Tutorials](tutorials/index.md)** — a four-step onboarding track that
+  takes you from install to a running app, with a clear explanation of
+  everything the starter produces.
+- **[Reference](reference/index.md)** — exact current-state facts about
+  the `runtime/*` packages, the `gofra` CLI, and the generated app
+  layout.
 
-Goal-oriented recipes for solving specific tasks. Use these when you know
-what you want to accomplish and need practical steps.
+What is **not** covered yet:
 
-### [Reference](reference/index.md)
+- **How-to guides** — single-task recipes (adding an RPC service, a
+  database migration, ZITADEL integration, production deployment).
+  These will arrive as each surface stabilizes.
+- **Explanation** — deep rationale for architectural choices. The
+  numbered design documents in the repo (`docs/00-index.md` onward) cover
+  this ground for maintainers today; user-facing explanation will be
+  extracted as surfaces solidify.
 
-Exact, factual documentation of Gofra's public APIs, CLI commands, config
-options, and generated app structure. The authoritative source for current
-supported behavior.
+## Where to start
 
-### [Explanation](explanation/index.md)
+If you have never used Gofra: start with
+[Tutorial 1](tutorials/01-your-first-gofra-app.md). The four tutorials run
+in order and take under an hour end-to-end.
 
-Conceptual content that explains why Gofra works the way it does, including
-tradeoffs and design rationale.
+If you know the framework shape and need facts: jump to
+[Reference](reference/index.md).
 
----
+## Source code
 
-Looking for contributor or maintainer documentation? See the `docs/project/`
-directory and the numbered design documents in the
-[Gofra source tree](https://github.com/Gabrielbdd/gofra/tree/main/docs).
+Gofra is developed openly at
+[github.com/Gabrielbdd/gofra](https://github.com/Gabrielbdd/gofra).
+
+Maintainer-facing design documents live in the `docs/` tree in the
+repository. They are not published here because they describe both
+current and planned behavior — exactly the material that would make a
+user-facing reference unreliable.

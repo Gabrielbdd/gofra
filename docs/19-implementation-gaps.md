@@ -33,20 +33,15 @@ work there to decide what to build next.
 Existing docs that describe things inaccurately relative to current
 implementation. Fix these before they mislead contributors.
 
-### README.md
+**Completed**: the previously-tracked README and
+`docs/02-system-architecture.md` drift items were resolved during the
+v0.1.0 module-path migration and the Phase 2 starter-contract alignment.
+`README.md`, `docs/14-tooling.md`, `docs/framework/reference/**`, the
+starter's own `README.md`, and `internal/scaffold/starter/full/mise.toml.tmpl`
+were brought into line with the shipped behavior in the same commit range.
 
-- [x] Line 112: references `internal/generate/runtimeconfig/` — the actual
-  path is `internal/generate/config/`. Update the repo layout section.
-
-### docs/02-system-architecture.md
-
-- [x] Lines 347-357: "Today `gofra new` copies one minimal runnable starter
-  that includes" lists files that do not match the current starter output.
-  The actual starter produces `proto/<app>/config/v1/config.proto` (not
-  `proto/<app>/runtime/v1/`), has no `config/` directory (config code is
-  generated post-scaffold via `mise run generate`), and has no
-  `gen/<app>/runtime/v1/` directory. Update the list to match
-  `internal/scaffold/starter/full/`.
+No currently-known drift. New drift discovered against main should be
+appended below.
 
 ---
 

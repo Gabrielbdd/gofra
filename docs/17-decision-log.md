@@ -223,3 +223,12 @@
 | 140 | Pin starter Postgres to `postgres:18.3-alpine3.23` | Avoid floating `latest` while staying on the current official stable image line with a small Alpine base. | [15](15-docker-compose.md) |
 | 141 | `scripts/compose.sh` auto-detects Docker vs Podman compose providers | One `mise run infra` command surface across the common local container engines. | [14](14-tooling.md) |
 | 142 | `scripts/load-env.sh` derives one local DB contract for Compose, goose, and app runtime | Prevents config drift between `compose.yaml`, migration tasks, and `go run ./cmd/app`. | [14](14-tooling.md) |
+
+## Public Distribution (Decisions #143–146)
+
+| # | Decision | Rationale | Doc |
+|---|----------|-----------|-----|
+| 143 | Canonical module path is `github.com/Gabrielbdd/gofra` | The framework is published on GitHub; the module path must match so apps resolve through the Go proxy. Previous internal path `databit.com.br/gofra` was migrated in full in v0.1.0. | [14](14-tooling.md) |
+| 144 | Starter ships `Dockerfile`, `.dockerignore`, and `.github/workflows/ci.yml` by default | Day-1 deployability is a framework promise: a freshly generated app must be runnable, buildable as a binary, buildable as an image, and testable in CI without extra tooling decisions. | [14](14-tooling.md) |
+| 145 | Starter Dockerfile uses multi-stage build with `gcr.io/distroless/static-debian12:nonroot` as runtime base | Static binary, no shell, non-root by default, minimal attack surface. Works without CGO. | [14](14-tooling.md) |
+| 146 | Generated apps depend on a published Gofra release through the Go module proxy — no `replace` directive in `go.mod.tmpl` | Apps must build the same way inside and outside any integration workspace. Local simultaneous development against framework edits is a caller concern (e.g. a `go.work` at the caller's level), not a framework-committed coupling. | [14](14-tooling.md) |

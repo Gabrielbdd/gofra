@@ -181,9 +181,9 @@ applications and they sit in Gofra's claimed area of responsibility.
 
 ### 8. Reproducible Tooling And Local Workflow
 
-- [ ] Pin tool versions and container images instead of relying on `latest`.
+- [x] Pin tool versions and container images instead of relying on `latest`.
 - [ ] Make the local Restate registration story use one correct endpoint.
-- [ ] Keep `mise`, generators, Docker Compose, and config examples in sync.
+- [x] Keep `mise`, generators, Docker Compose, and config examples in sync.
 
 **Why this is release-critical**: "works on a clean machine" is a baseline
 requirement for framework usability.
@@ -194,13 +194,16 @@ typed defaults (`gofra.config.v1.field` annotations) and secret marking.
 `gofra generate config` produces Go structs, flag registration, loading, and
 public config wiring — the starter ships zero hand-written config code.
 `gofra new` does a pure file copy; `mise run generate` handles code generation.
-The starter now also ships a pinned Postgres image in `compose.yaml`, Docker or
+The starter also ships a pinned Postgres image in `compose.yaml`, Docker or
 Podman-neutral `infra` tasks, and one shared env-loading path for Compose,
-goose, and the app runtime. The developer workflow is
+goose, and the app runtime. Since v0.1.1 the starter additionally pins
+`golang:1.25-alpine` as the image builder, `gcr.io/distroless/static-debian12:nonroot`
+as the runtime, and installs the pinned Go toolchain in CI through
+`jdx/mise-action`. `mise.toml.tmpl` pins `go = "1.25"` end-to-end, matching
+the framework's own `mise.toml`. The developer workflow is
 `gofra new myapp && cd myapp && mise trust && mise run infra && mise run migrate && mise run dev`.
 Browser config comes from `/_gofra/config.js` via the `public`
-subtree convention. The broader infra image set and Restate endpoint cleanup
-are still open.
+subtree convention. The Restate endpoint cleanup is still open.
 
 ### 9. Operational Baseline
 
@@ -257,8 +260,8 @@ contracts.
 
 Gofra v1 is not ready to ship until all of the following are true:
 
-- [ ] A new application can be scaffolded and run locally without undocumented
-  decisions.
+- [x] A new application can be scaffolded and run locally without undocumented
+  decisions. (Shipped in v0.1.1; `go install github.com/Gabrielbdd/gofra/cmd/gofra@latest && gofra new <dir> && cd <dir> && mise trust && mise run dev` is the documented path, with Postgres via `mise run infra` and migrations via `mise run migrate` as optional next steps.)
 - [ ] The documentation describes one coherent framework, not multiple
   competing designs.
 - [ ] Auth works end to end with one documented refresh and logout story.

@@ -4,17 +4,10 @@
 @.claude/rules/diataxis-classification.md
 @.claude/rules/reference-scope.md
 
-## Documentation
+## PSA Product
 
-- User-facing docs live in `docs/framework/`, organized by Diataxis
-  (tutorials, how-to, reference, explanation).
-- Project/maintainer docs live in `docs/project/` and the numbered design docs
-  in `docs/`.
-- Reference (`docs/framework/reference/`) is end-user only: current-state
-  facts about public surfaces. No internals, no rationale, no future plans.
-- If a change touches `runtime/**`, `cmd/gofra/**`, `proto/**`, or
-  `internal/scaffold/starter/full/**`, update the corresponding docs under
-  `docs/framework/` in the same task.
-- If a new public surface is introduced, create a new reference page for it.
-- Before finishing any task, confirm which `docs/framework/` pages were
-  created or updated. A Stop hook enforces this.
+The PSA (Professional Services Automation) is the first product built with
+Gofra. Its product blueprint lives at `docs/psa/index.md`. Consult it when
+making framework design decisions that the PSA would exercise — it provides
+concrete use cases for ticketing, billing, multi-tenancy, workflows, and AI.
+The PSA source code lives in `psa/` (git submodule, separate repo).

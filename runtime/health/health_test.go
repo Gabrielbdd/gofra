@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	runtimehealth "databit.com.br/gofra/runtime/health"
+	runtimehealth "github.com/Gabrielbdd/gofra/runtime/health"
 )
 
 func TestStartupBeforeMarkStarted(t *testing.T) {

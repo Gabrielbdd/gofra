@@ -9,7 +9,7 @@ Alpha — API may change before v1.
 ## Import
 
 ```go
-import "databit.com.br/gofra/runtime/config"
+import "github.com/Gabrielbdd/gofra/runtime/config"
 ```
 
 The package is named `runtimeconfig` in code.

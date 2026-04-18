@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package gofra.config.v1;
 
-option go_package = "databit.com.br/gofra/internal/generate/config/gofraconfig";
+option go_package = "github.com/Gabrielbdd/gofra/internal/generate/config/gofraconfig";
 
 import "google/protobuf/descriptor.proto";
 

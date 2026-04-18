@@ -9,7 +9,7 @@ Alpha — API may change before v1.
 ## Import
 
 ```go
-import "databit.com.br/gofra/runtime/health"
+import "github.com/Gabrielbdd/gofra/runtime/health"
 ```
 
 The package is named `runtimehealth` in code.

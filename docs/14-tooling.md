@@ -89,8 +89,8 @@ workflow for PostgreSQL:
 ```toml
 [tasks.generate]
 run = """
-GOFLAGS=-mod=mod go run databit.com.br/gofra/cmd/gofra generate config \
-  -runtime databit.com.br/gofra/runtime/config \
+GOFLAGS=-mod=mod go run github.com/Gabrielbdd/gofra/cmd/gofra generate config \
+  -runtime github.com/Gabrielbdd/gofra/runtime/config \
   proto/<app>/config/v1/config.proto
 go mod tidy
 """

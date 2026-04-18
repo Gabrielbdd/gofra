@@ -18,7 +18,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/descriptorpb"
 
-	gofraconfig "databit.com.br/gofra/internal/generate/config/gofraconfig"
+	gofraconfig "github.com/Gabrielbdd/gofra/internal/generate/config/gofraconfig"
 )
 
 //go:embed annotations.proto

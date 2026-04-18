@@ -1,4 +1,4 @@
-module databit.com.br/gofra
+module github.com/Gabrielbdd/gofra
 
 go 1.25.0
 

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	configgen "databit.com.br/gofra/internal/generate/config"
+	configgen "github.com/Gabrielbdd/gofra/internal/generate/config"
 )
 
 func TestGenerateCreatesRunnableStarter(t *testing.T) {

@@ -11,7 +11,7 @@ Alpha — API may change before v1.
 ## Import
 
 ```go
-import "databit.com.br/gofra/runtime/auth"
+import "github.com/Gabrielbdd/gofra/runtime/auth"
 ```
 
 The package is named `runtimeauth` in code.

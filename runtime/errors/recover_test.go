@@ -8,7 +8,7 @@ import (
 
 	"connectrpc.com/connect"
 
-	runtimeerrors "databit.com.br/gofra/runtime/errors"
+	runtimeerrors "github.com/Gabrielbdd/gofra/runtime/errors"
 )
 
 func TestRecoverHandler_ReturnsInternal(t *testing.T) {

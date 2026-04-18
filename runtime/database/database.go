@@ -10,7 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	runtimehealth "databit.com.br/gofra/runtime/health"
+	runtimehealth "github.com/Gabrielbdd/gofra/runtime/health"
 )
 
 // Config holds pool parameters for [Open]. Fields with zero values are left

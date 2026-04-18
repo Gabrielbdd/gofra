@@ -23,50 +23,57 @@ Esse documento apresenta:
 
 ---
 
-## 0. Estratégia de desenvolvimento — Gofra + PSA
+## 0. Estratégia de desenvolvimento — Gofra + Gospa
 
 ### Dois projetos, um ecossistema
 
-O PSA é desenvolvido **em paralelo** com o framework Gofra. Essa decisão é intencional: o PSA é ao mesmo tempo o **primeiro produto real** e o **campo de prova** do framework. Cada feature do PSA valida e refina os contratos, geradores, runtime e convenções do Gofra. Cada melhoria no Gofra beneficia o PSA imediatamente.
+**Gospa** é a implementação deste blueprint — o PSA open source construído
+com o framework Gofra. É desenvolvido **em paralelo** com o framework: é ao
+mesmo tempo o **primeiro produto real** e o **campo de prova** do Gofra. Cada
+feature do Gospa valida e refina os contratos, geradores, runtime e
+convenções do Gofra. Cada melhoria no Gofra beneficia o Gospa imediatamente.
 
-### Isolamento total — git submodule
+### Isolamento total — repositórios separados
 
-O código do PSA vive no diretório `psa/` na raiz do repositório Gofra, mas é **100% isolado**:
+Gofra e Gospa são **dois repositórios GitHub independentes**:
 
-- **Repositório próprio**: o PSA é um repositório Git independente, com seu próprio `go.mod`, CI, releases e contribuidores.
-- **Git submodule**: incluído no repo Gofra via `git submodule add`. A única razão de estar aqui é dar aos agentes de AI (Claude Code, Copilot, etc.) contexto completo de ambos os projetos simultaneamente.
-- **Sem dependência direcional no repo**: o PSA depende do Gofra como módulo Go (`go.mod` aponta para o Gofra publicado ou via `replace` local durante desenvolvimento). O Gofra não depende do PSA.
-- **Builds independentes**: `go build` e `go test` funcionam dentro de `psa/` sem precisar do repo pai.
+- `github.com/Gabrielbdd/gofra` — framework, CLI, starter, runtime packages.
+- `github.com/Gabrielbdd/gospa` — produto (PSA), gerado a partir do starter
+  do Gofra.
+
+Cada um tem seu próprio `go.mod`, CI, releases e contribuidores. O Gospa
+depende do Gofra como módulo Go normal (`require github.com/Gabrielbdd/gofra vX.Y.Z`);
+o Gofra **não** depende do Gospa.
+
+Para desenvolvimento simultâneo local, existe um **workspace separado**
+(`gospa-workspace`) que inclui os dois repos como git submodules e usa um
+`go.work` para resolver imports direto dos checkouts locais, sem nenhum
+`replace` comprometido em `go.mod`.
 
 ```
-gofra/                          ← repo do framework
-├── cmd/gofra/                  ← CLI do framework (geradores, etc.)
-├── runtime/                    ← pacotes reutilizáveis do framework
-├── internal/                   ← internals do framework
-├── docs/                       ← docs do framework + blueprint do PSA
-│   └── psa/index.md            ← este documento (blueprint de produto)
-├── psa/                        ← git submodule → repo do PSA
-│   ├── go.mod                  ← módulo independente
-│   ├── cmd/psa/                ← binário do PSA
-│   ├── app/                    ← serviços, handlers, workflows
-│   ├── proto/                  ← definições protobuf do PSA
-│   ├── web/                    ← frontend React (Vite + TanStack)
-│   ├── docs/                   ← docs operacionais do PSA
-│   └── ...
-└── ...
+gospa-workspace/                       ← workspace de integração local
+├── go.work                            ← versionado só aqui
+├── .gitmodules
+└── repos/
+    ├── gofra/   ← github.com/Gabrielbdd/gofra (framework)
+    └── gospa/   ← github.com/Gabrielbdd/gospa (produto)
 ```
+
+Este blueprint (`docs/psa/index.md`) continua vivendo no repo do Gofra
+porque informa decisões de design do framework — a especificação do produto
+puxa as necessidades que o framework precisa atender.
 
 ### Fluxo de desenvolvimento
 
-1. **Feature no PSA precisa de algo novo no framework** → implementa no Gofra primeiro (runtime ou generator), depois usa no PSA.
-2. **Gofra evolui um contrato** → atualiza o PSA para validar que o contrato funciona em produção real.
-3. **Bug encontrado via PSA** → corrigido no Gofra se for problema do framework, no PSA se for lógica de produto.
+1. **Feature no Gospa precisa de algo novo no framework** → implementa no Gofra primeiro (runtime ou generator), depois usa no Gospa.
+2. **Gofra evolui um contrato** → atualiza o Gospa para validar que o contrato funciona em produção real.
+3. **Bug encontrado via Gospa** → corrigido no Gofra se for problema do framework, no Gospa se for lógica de produto.
 
 ### O que cada agente de AI precisa saber
 
-- Ao trabalhar no **Gofra**: foco em framework genérico, reutilizável. O PSA é contexto para entender casos de uso, não para ser editado.
-- Ao trabalhar no **PSA**: foco em produto. O Gofra fornece os building blocks. Se algo falta no framework, a resposta é criar no Gofra primeiro.
-- Este documento (`docs/psa/index.md`) é o **blueprint de produto do PSA** — mercado, features, arquitetura, roadmap. Ele vive no repo do Gofra porque informa decisões de design do framework.
+- Ao trabalhar no **Gofra**: foco em framework genérico, reutilizável. O Gospa é contexto para entender casos de uso, não para ser editado a partir deste repo.
+- Ao trabalhar no **Gospa**: foco em produto. O Gofra fornece os building blocks. Se algo falta no framework, a resposta é criar no Gofra primeiro.
+- Este documento (`docs/psa/index.md`) é o **blueprint de produto do Gospa** — mercado, features, arquitetura, roadmap. Ele vive no repo do Gofra porque informa decisões de design do framework.
 
 ---
 

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	runtimeconfig "databit.com.br/gofra/runtime/config"
+	runtimeconfig "github.com/Gabrielbdd/gofra/runtime/config"
 
 	flag "github.com/spf13/pflag"
 )

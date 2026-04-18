@@ -9,7 +9,7 @@ Alpha — API may change before v1.
 ## Import
 
 ```go
-import "databit.com.br/gofra/runtime/serve"
+import "github.com/Gabrielbdd/gofra/runtime/serve"
 ```
 
 The package is named `runtimeserve` in code.

@@ -9,7 +9,7 @@ Alpha — commands and flags may change before v1.
 ## Installation
 
 ```bash
-go install databit.com.br/gofra/cmd/gofra@latest
+go install github.com/Gabrielbdd/gofra/cmd/gofra@latest
 ```
 
 Or run directly from a framework checkout:

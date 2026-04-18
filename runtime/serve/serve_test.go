@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	runtimeserve "databit.com.br/gofra/runtime/serve"
+	runtimeserve "github.com/Gabrielbdd/gofra/runtime/serve"
 )
 
 func TestStartupMarksHealthAfterBind(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 	"connectrpc.com/connect"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 
-	runtimeerrors "databit.com.br/gofra/runtime/errors"
+	runtimeerrors "github.com/Gabrielbdd/gofra/runtime/errors"
 )
 
 func TestNotFound(t *testing.T) {

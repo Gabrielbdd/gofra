@@ -252,7 +252,7 @@ The generated `go.mod` includes a local `replace` directive pointing to the
 framework checkout that created the app:
 
 ```
-replace databit.com.br/gofra => /path/to/gofra
+replace github.com/Gabrielbdd/gofra => /path/to/gofra
 ```
 
 This is necessary because the framework is not yet published. Once published,
@@ -264,7 +264,7 @@ this replace directive can be removed.
 |------------|---------|---------|
 | `github.com/go-chi/chi/v5` | v5.2.5 | HTTP router |
 | `github.com/spf13/pflag` | v1.0.10 | CLI flag parsing |
-| `databit.com.br/gofra` | v0.0.0 (local) | Framework runtime packages |
+| `github.com/Gabrielbdd/gofra` | v0.0.0 (local) | Framework runtime packages |
 
 ## Runtime Behavior
 

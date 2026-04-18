@@ -219,7 +219,7 @@ Running:
 ```bash
 gofra generate config \
   --out config \
-  --runtime databit.com.br/gofra/runtime/config \
+  --runtime github.com/Gabrielbdd/gofra/runtime/config \
   proto/myapp/config/v1/config.proto
 ```
 

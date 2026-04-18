@@ -10,7 +10,7 @@ Alpha — API may change before v1.
 ## Import
 
 ```go
-import "databit.com.br/gofra/runtime/database"
+import "github.com/Gabrielbdd/gofra/runtime/database"
 ```
 
 The package is named `runtimedatabase` in code.

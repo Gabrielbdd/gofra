@@ -316,7 +316,7 @@ const file_annotations_proto_rawDesc = "" +
 	"\n" +
 	"StringList\x12\x16\n" +
 	"\x06values\x18\x01 \x03(\tR\x06values:V\n" +
-	"\x05field\x12\x1d.google.protobuf.FieldOptions\x18\xb8\x8e\x03 \x01(\v2\x1c.gofra.config.v1.FieldConfigR\x05field\x88\x01\x01B;Z9databit.com.br/gofra/internal/generate/config/gofraconfigb\x06proto3"
+	"\x05field\x12\x1d.google.protobuf.FieldOptions\x18\xb8\x8e\x03 \x01(\v2\x1c.gofra.config.v1.FieldConfigR\x05field\x88\x01\x01BBZ@github.com/Gabrielbdd/gofra/internal/generate/config/gofraconfigb\x06proto3"
 
 var (
 	file_annotations_proto_rawDescOnce sync.Once

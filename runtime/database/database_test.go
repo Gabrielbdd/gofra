@@ -6,7 +6,7 @@ import (
 	"testing/fstest"
 	"time"
 
-	runtimedatabase "databit.com.br/gofra/runtime/database"
+	runtimedatabase "github.com/Gabrielbdd/gofra/runtime/database"
 )
 
 func TestOpenEmptyDSN(t *testing.T) {

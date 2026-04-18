@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
-	configgen "databit.com.br/gofra/internal/generate/config"
-	"databit.com.br/gofra/internal/scaffold"
+	configgen "github.com/Gabrielbdd/gofra/internal/generate/config"
+	"github.com/Gabrielbdd/gofra/internal/scaffold"
 )
 
 func main() {

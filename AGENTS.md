@@ -213,7 +213,7 @@ Current runnable commands:
 - `mise run test` runs the same test suite through the repo task runner.
 - `mise run new -- ../myapp` generates a starter-backed application for manual testing.
 - `mise run smoke:new` generates a temporary app and runs `go test ./...` inside it.
-- `go run ./cmd/gofra generate runtime-config -h` shows the current generator
+- `go run ./cmd/gofra generate config -h` shows the current generator
   entrypoint shape.
 
 Target workflow:

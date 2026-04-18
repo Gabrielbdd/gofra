@@ -18,7 +18,7 @@ the current Go-only implementation slices:
 ```toml
 # mise.toml
 [tools]
-go = "1.23"
+go = "1.25"
 
 [tasks.test]
 run = "env GOCACHE=${GOCACHE:-/tmp/gofra-gocache} go test ./..."
@@ -69,7 +69,7 @@ task file.
 ```toml
 # generated app mise.toml (target shape)
 [tools]
-go = "1.23"
+go = "1.25"
 node = "22"
 "go:github.com/bufbuild/buf/cmd/buf" = "latest"
 "go:google.golang.org/protobuf/cmd/protoc-gen-go" = "latest"
@@ -275,7 +275,7 @@ The intended implementation split behind that CLI is:
 - `internal/generate/` for `gofra generate ...`
 
 The current repo now uses `internal/scaffold/` and
-`internal/generate/runtimeconfig/` for the implemented config slice.
+`internal/generate/config/` for the implemented config slice.
 
 ## Current Scaffold Strategy
 

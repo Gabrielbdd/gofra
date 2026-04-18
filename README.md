@@ -84,7 +84,7 @@ These tasks exist in the repo today:
 
 - `mise run test` runs `go test ./...` for the framework repo
 - `mise run gofra` shows the current `gofra` CLI help
-- `mise run gen:runtimeconfig` shows the current runtime-config generator help
+- `mise run gen:config` shows the config generator help
 - `mise run new -- <path>` creates a new app from the canonical starter
 - `mise run new:module -- <path> <module>` creates a new app with an explicit
   module path
@@ -96,7 +96,7 @@ You can also run the underlying commands directly:
 ```bash
 go run ./cmd/gofra --help
 go run ./cmd/gofra new ../myapp
-go run ./cmd/gofra generate runtime-config -h
+go run ./cmd/gofra generate config -h
 go test ./...
 ```
 

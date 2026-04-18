@@ -26,11 +26,13 @@ Run `mise run generate` after editing the proto to regenerate the Go code.
 
 ## Local Framework Dependency
 
-The framework module is not published yet. `gofra new` therefore adds a local
-`replace` directive in `go.mod` so this generated application builds against
-the framework checkout that created it.
+The framework module `github.com/Gabrielbdd/gofra` does not have a public
+release yet. `gofra new` therefore writes a `replace` directive in this
+project's `go.mod` pointing at the local framework checkout that created it,
+so the app builds without needing a published version.
 
-Once the framework is published, this temporary local replace can be removed.
+Once the framework cuts its first release, newly generated apps will depend
+on that tag and this section disappears.
 
 ## Run
 
@@ -59,3 +61,18 @@ mise run infra:reset
 mise run infra
 mise run migrate
 ```
+
+## Tasks
+
+The starter ships with these `mise` tasks:
+
+| Task | Purpose |
+| --- | --- |
+| `mise run generate` | Regenerate config code from the proto schema. |
+| `mise run test` | Run `go test ./...` after regenerating config code. |
+| `mise run build` | Build the application binary to `bin/`. |
+| `mise run dev` | Start the backend locally (depends on `generate`). |
+| `mise run infra` | Start local infrastructure (Postgres) via Compose. |
+| `mise run infra:stop` / `infra:reset` / `infra:logs` | Manage local infrastructure. |
+| `mise run migrate` / `migrate:create` / `migrate:down` / `migrate:status` | Manage database migrations via `goose`. |
+| `mise run seed` | Seed the database with development data. |

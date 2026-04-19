@@ -55,7 +55,13 @@ mise run smoke:new
 
 `mise run smoke:new` is the current regression check for the starter contract:
 it generates a temporary app and verifies that the generated project passes
-`go test ./...`.
+`go test ./...`. It stays Go-only so the framework's most-run smoke does not
+require a Node toolchain.
+
+`mise run smoke:frontend` is the opt-in counterpart. It generates a temporary
+app, runs `mise run generate`, then executes `npm install && npm run build`
+inside `web/`. Use it when touching scaffold frontend files; skip it for pure
+Go changes.
 
 `gofra generate config` is now part of the public CLI surface, with
 normal app developers usually relying on `mise run gen` or `mise run dev`

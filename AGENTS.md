@@ -73,6 +73,23 @@ Every task follows this sequence. Skipping steps is not acceptable.
   Zitadel, sqlc, TanStack, etc.) to ensure correctness.
 - Understand what exists before proposing anything new.
 
+**Deep research for non-trivial changes.** "Non-trivial" means any change
+that adds or alters a public surface (`runtime/**`, `cmd/gofra/**`,
+`proto/**`), introduces a new runtime package, or changes observable
+starter behavior (`internal/scaffold/starter/full/**`). Isolated bug fixes
+and pure doc edits are exempt.
+
+For non-trivial changes, before moving on from this step:
+
+- Identify known architectural patterns for the problem.
+- Consider at least two alternatives beyond the one you plan to propose,
+  with a one-line reason each was or was not chosen.
+- Study how mature frameworks solve the same problem (Laravel, Rails,
+  Phoenix) and how the relevant upstreams (Restate, Connect, Zitadel,
+  sqlc, TanStack) shape the contract.
+- State the expected impact on DX, operations, and documentation
+  explicitly — not "we'll see", but concrete consequences.
+
 #### 2. Clarify
 
 - Confirm that the problem, the real objective, and the scope are clear.
@@ -92,19 +109,30 @@ Context consulted: which docs, files, and sources were read
 Areas affected: paths, surfaces, packages
 Proposed plan: step-by-step description of what will be done
 Risks and open questions: anything uncertain or potentially problematic
-Confidence: problem X/10 · context Y/10 · solution Z/10
+Confidence:
+  - Architectural:    NN%  (alignment with documented architecture and 17-decision-log)
+  - Business / PO:    NN%  (alignment with framework adoption and V1 promises)
+  - User perspective: NN% — persona: <named persona>
+                      (default: a Gofra dev building a consumer application;
+                       switch persona when the change targets a more specific
+                       role, e.g., contributor editing runtime internals)
+  - Solution:         NN%  (correctness and completeness of the proposed plan)
 Awaiting user approval.
 ```
 
-The confidence scores are critical. Be honest:
-- **Problem** — how well you understand what needs to be solved.
-- **Context** — how well you understand the surrounding architecture, patterns,
-  and constraints.
+The four confidence scores are critical. Be honest:
+- **Architectural** — how well the plan aligns with the architecture documented
+  in `docs/02-system-architecture.md` and the numbered decisions in
+  `docs/17-decision-log.md`.
+- **Business / PO** — how well the plan advances framework adoption and the
+  V1 promises in `docs/18-readiness-checklist.md`.
+- **User perspective** — how well the plan serves the named persona. Name the
+  persona explicitly; do not score this axis in the abstract.
 - **Solution** — how confident you are that the proposed plan is correct and
   complete.
 
-A score below 7 on any axis means you should explicitly state what you are
-unsure about and what would raise your confidence.
+Any axis below 70% means you must state what you are unsure about and what
+would raise your confidence. Silence on a low score is not acceptable.
 
 #### 4. Gate — wait for approval
 
@@ -130,6 +158,17 @@ does not require prior approval — only implementation does.
   `docs/19-implementation-gaps.md`.
 - Update or create `docs/framework/` pages as required by the documentation
   contract.
+- Changes that affect developer experience, deployment, or day-to-day
+  operation require reviewing and, when necessary, updating the
+  corresponding runbooks: `docs/14-tooling.md`, `docs/15-docker-compose.md`,
+  and the relevant pages under `docs/framework/`. Realistic validation is
+  part of the contract — not just unit tests:
+  - scaffold changes must be exercised with `mise run smoke:new`;
+  - runtime changes must be covered by `go test ./...`;
+  - UI-visible changes must be opened in a browser and confirmed to work.
+- For long-running work that will span sessions, follow the convention in
+  [`docs/project/agent-workflow.md`](docs/project/agent-workflow.md) and
+  keep a progress file current.
 - Confirm which docs were created or updated before finishing.
 
 ## Project Structure & Module Organization

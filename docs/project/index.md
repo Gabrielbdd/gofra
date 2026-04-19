@@ -8,6 +8,8 @@ that are not relevant to developers using Gofra in their applications.
 
 - [Documentation System](documentation-system.md) — How user-facing and
   project docs are organized and enforced.
+- [Agent Workflow](agent-workflow.md) — Progress file convention for
+  long-running work that spans more than one session.
 - [Deferred Auth/Authz MVP Proposal](auth-authz-mvp-proposal.md) — Captured
   implementation shape for the postponed auth/authz runtime slice.
 

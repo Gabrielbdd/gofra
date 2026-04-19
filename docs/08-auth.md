@@ -615,10 +615,26 @@ credentials.
 | **Instance** | One per deployment (dev, staging, prod) |
 | **Organization** | One per tenant (B2C: single org for all users. B2B: one org per customer) |
 | **Project** | One per Gofra application (contains the app's roles) |
-| **Application** | Three: one User Agent app for the browser SPA, one Native app for mobile/desktop, one JWT-profile app for the service account |
+| **Application** | At least one User Agent app (OIDC SPA) for the browser. Native apps and any machine-to-machine credential are per-app concerns — see note below. |
 | **Roles** | Application-level roles: `admin`, `editor`, `viewer`, etc. |
 | **User Grants** | Assigns a user to a role within the project |
 | **Actions** | Optional: custom claims injection (e.g., add org metadata to tokens) |
+
+**Note on machine-to-machine credentials.** Applications that need to call
+the ZITADEL Management or v2 APIs (for example, to provision organizations
+or users on behalf of the deployment) pick one pattern per app:
+
+- **Personal Access Token (PAT) on a machine user.** Simplest to bootstrap,
+  works well for single-tenant deployments where the same credential
+  serves bootstrap and runtime provisioning. Pairs with the
+  [`runtime/zitadel`](framework/reference/runtime/zitadel.md) helpers in
+  this repo.
+- **JWT-profile service account.** Stronger credential posture, more setup.
+  Framework-level support can land when a consumer app needs it; the
+  runtime interceptor pattern in `runtime/zitadel` is compatible.
+
+The starter does not ship either out of the box — consumer apps configure
+what they need via their own `steps.yaml` or post-install flow.
 
 ### Development Setup
 

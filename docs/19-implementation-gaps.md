@@ -196,14 +196,14 @@ Source doc: [15-docker-compose.md](15-docker-compose.md)
 - [x] `compose.yaml`
   - [x] `postgres:18.3-alpine3.23` — app DB, healthcheck, named volume, shared memory limit
   - [ ] `restate:latest` — ingress (:8080), admin UI (:9070), `host.docker.internal`
-  - [ ] `zitadel:latest` — `:8081`, depends on postgres, initial admin user
+  - [x] `zitadel:stable` — `:8081`, depends on postgres, vanilla `start-from-init` bootstrap
   - [ ] `jaeger:2` — profile `tracing`, ports 4317/4318/16686
-  - [ ] Postgres init script for Zitadel database creation
+  - [x] ~~Postgres init script for Zitadel database creation~~ — ZITADEL bootstraps its own DB using admin credentials.
 - [x] `.env.example` — template for local Postgres and compose overrides
   - [x] `GOFRA_POSTGRES_IMAGE`
   - [x] `GOFRA_DB_HOST`, `GOFRA_DB_PORT`, `GOFRA_DB_USER`, `GOFRA_DB_PASSWORD`, `GOFRA_DB_NAME`, `GOFRA_DB_SSLMODE`
+  - [x] `GOFRA_ZITADEL_IMAGE`, `GOFRA_ZITADEL_PORT`, `GOFRA_ZITADEL_EXTERNAL_DOMAIN`, `GOFRA_ZITADEL_MASTERKEY`
   - [ ] `RESTATE_INGRESS_URL`
-  - [ ] `ZITADEL_ISSUER`, `ZITADEL_CLIENT_ID`, `ZITADEL_PROJECT_ID`
   - [ ] `OTEL_EXPORTER_OTLP_ENDPOINT`
 
 ### 2.3 Database
@@ -241,20 +241,20 @@ Source docs: [02-system-architecture.md](02-system-architecture.md),
 
 Source doc: [13-frontend.md](13-frontend.md)
 
-- [ ] `web/package.json` — React, Vite, TanStack Router/Query, Connect-Query, shadcn, Tailwind 4
-- [ ] `web/vite.config.ts`
-- [ ] `web/tsconfig.json`
-- [ ] `web/index.html` — loads `/_gofra/config.js`, mounts React root
-- [ ] `web/src/main.tsx` — React entry point
-- [ ] `web/src/routes/__root.tsx` — TanStack Router layout
-- [ ] `web/src/routes/index.tsx` — home route
+- [x] `web/package.json` — React 19, Vite 6, TanStack Router/Query/Form, shadcn/ui, Tailwind v4, Connect web client
+- [x] `web/vite.config.ts`
+- [x] `web/tsconfig.json`
+- [x] `web/index.html` — loads `/_gofra/config.js`, mounts React root
+- [x] `web/src/main.tsx` — React entry point (QueryClient + RouterProvider)
+- [x] `web/src/routes/__root.tsx` — TanStack Router layout
+- [x] `web/src/routes/index.tsx` — home route
 - [ ] `web/src/lib/transport.ts` — Connect transport with `runtimeConfig.apiBaseUrl`
 - [ ] `web/src/lib/auth.ts` — `react-oidc-context` + OIDC config from runtime config
 - [ ] `web/src/lib/errors.ts` — error parsing helpers
-- [ ] `web/src/lib/runtime-config.ts` — re-export of generated loader
-- [ ] `web/src/components/ui/` — initial shadcn components
-- [ ] Dev proxy from Go (:3000) to Vite (:5173)
-- [ ] Production `//go:embed all:dist` with SPA fallback handler
+- [x] `web/src/lib/runtime-config.ts` — re-export of generated loader
+- [x] `web/src/components/ui/` — initial shadcn components (Button)
+- [x] Dev proxy from Go (:3000) to Vite (:5173) via `-tags dev`
+- [x] Production `//go:embed all:dist` with SPA fallback handler
 
 ### 2.7 Mise Tasks
 
@@ -264,17 +264,17 @@ Today only `generate` and `dev` exist. Missing:
 
 - [ ] `gen` — umbrella task (gen:go + gen:ts + gen:sql + gen:config)
 - [ ] `gen:go` — `buf generate` for Go Connect stubs
-- [ ] `gen:ts` — `buf generate` for TypeScript
+- [ ] `gen:ts` — `buf generate` for TypeScript RPC stubs (runtime-config TS comes from `gofra generate config -ts-out`)
 - [x] `gen:sql` — `sqlc generate`
 - [ ] `dev:api` — Go server with air hot reload + Restate registration
-- [ ] `dev:web` — Vite dev server
-- [x] `infra` — start local Postgres with Compose and wait until ready
+- [x] `dev:web` — Vite dev server
+- [x] `infra` — start local Postgres + ZITADEL with Compose and wait until both are ready
 - [x] `infra:stop` — stop local infrastructure
 - [x] `infra:reset` — stop local infrastructure and remove volumes
 - [ ] `infra:tracing` — `docker compose --profile tracing up -d`
-- [x] `infra:logs` — tail Postgres logs from Compose
-- [ ] `build` — Go binary + frontend assets
-- [ ] `build:web` — frontend assets only
+- [x] `infra:logs` — tail Compose service logs
+- [x] `build` — Go binary + frontend assets (Go `build` depends on `web:build`)
+- [x] `build:web` — frontend assets only
 - [ ] `test` — `go test ./...`
 - [ ] `lint` — `buf lint` + `golangci-lint run`
 - [x] `migrate` — `goose up`

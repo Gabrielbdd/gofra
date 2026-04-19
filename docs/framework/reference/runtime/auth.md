@@ -3,6 +3,10 @@
 > JWT-based authentication for Connect RPC services. Extracts and validates
 > Bearer tokens, attaches the authenticated user to request context, and
 > enforces private-by-default access on Connect procedures.
+>
+> Pairs with [`runtime/zitadel`](zitadel.md) on the outbound side when the
+> same app both accepts user tokens and calls ZITADEL's Management / v2
+> APIs from its provisioning code.
 
 ## Status
 

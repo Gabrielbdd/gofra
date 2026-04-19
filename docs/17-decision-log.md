@@ -178,7 +178,7 @@
 | 110 | Named volumes for persistence | `down` keeps data. `down -v` for clean reset. | [15](15-docker-compose.md) |
 | 111 | `host.docker.internal` for Restate → host | Restate in Docker must reach Go on host :9080. | [15](15-docker-compose.md) |
 | 112 | Separate `infra` and `dev` mise tasks | Infra starts once. App restarts frequently. | [15](15-docker-compose.md) |
-| 113 | Manual Zitadel bootstrap | Chicken-and-egg for API automation. 2-min manual setup. | [15](15-docker-compose.md) |
+| 113 | ~~Manual Zitadel bootstrap~~ (superseded by #150) | Chicken-and-egg for API automation. 2-min manual setup. | [15](15-docker-compose.md) |
 | 114 | `.env` for machine-specific values | Zitadel client IDs differ per developer. Not in git. | [15](15-docker-compose.md) |
 
 ## Graceful Shutdown (Decisions #115–123)
@@ -240,3 +240,12 @@
 | 147 | MkDocs + Material for the public documentation site | Content is already Markdown under `docs/framework/` and already Diataxis-organized. MkDocs builds a static site with zero frontend app, and Material provides search, navigation, and code-copy out of the box. No runtime dependency is added to the framework itself. | [documentation-system](project/documentation-system.md) |
 | 148 | GitHub Pages deployment via GitHub Actions on `main` | The repo is already public on GitHub. Actions + Pages removes any separate hosting contract, keeps deploys reproducible from source, and requires no external credentials beyond the repo itself. PRs run `mkdocs build --strict` to catch broken links and dangling references before merge. | [documentation-system](project/documentation-system.md) |
 | 149 | The public site publishes only tutorials and reference in v0 — no stubs, no placeholders | The cost of publishing empty How-to and Explanation sections is worse than not publishing them: readers click, find nothing, and lose trust. How-to and Explanation enter the nav only when each has real content that reflects behavior shipping today. | [documentation-system](project/documentation-system.md) |
+
+## Identity & Frontend Default (Decisions #150–153)
+
+| # | Decision | Rationale | Doc |
+|---|----------|-----------|-----|
+| 150 | ZITADEL is a default service in the starter `compose.yaml`; runtime auth stays opt-in | Identity is a standard dependency of the apps Gofra targets. Shipping ZITADEL alongside Postgres removes a setup step and lets consumer apps treat ZITADEL as a ready neighbor. The Go binary keeps its opt-in JWT middleware (installs only when `auth.issuer` and `auth.audience` are set) so a fresh starter still runs without any ZITADEL configuration. Supersedes #113. | [15](15-docker-compose.md) |
+| 151 | Starter frontend is Vite + React 19 + TanStack Router/Query/Form + Tailwind v4 + shadcn/ui, with no lint or formatting tool by default | Matches Gofra's documented v1 stack in [13](13-frontend.md). Copying shadcn/ui into the tree (rather than depending on it) keeps customization cheap. Skipping Biome/Prettier/ESLint by default avoids imposing a style choice on every consumer app — those can be added per project. | [13](13-frontend.md) |
+| 152 | TS runtime-config types are emitted by `gofra generate config -ts-out`, from the same parser that emits Go | One proto, one parser, two languages — the frontend and backend cannot drift on public config shape. Runtime schema validation is intentionally out of scope (consumers can pair with a proto-es pipeline). | [framework/reference/cli/generate-config.md](framework/reference/cli/generate-config.md) |
+| 153 | `runtime/zitadel` + `runtime/zitadel/secret` are consumer-facing helper packages; the starter never imports them | The framework ships the ZITADEL service but not any hard dependency on it at runtime. Consumer apps that need to call ZITADEL management APIs opt into the helpers explicitly. Keeps smoke:new Go-only and the starter binary free of opinionated provisioning flows. | [framework/reference/runtime/zitadel.md](framework/reference/runtime/zitadel.md) |

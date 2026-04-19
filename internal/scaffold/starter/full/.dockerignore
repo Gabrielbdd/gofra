@@ -3,7 +3,6 @@
 .gitignore
 .dockerignore
 bin/
-dist/
 tmp/
 *.md
 .env
@@ -11,3 +10,4 @@ tmp/
 compose.yaml
 .vscode
 .idea
+web/node_modules

@@ -1,19 +1,53 @@
+//go:build !dev
+
 package web
 
 import (
 	"embed"
 	"io/fs"
 	"net/http"
+	"strings"
 )
 
-//go:embed index.html
-var assets embed.FS
+//go:embed all:dist
+var distFS embed.FS
 
+// Handler returns an HTTP handler that serves the embedded single-page
+// application. Requests for files that exist in dist/ are served directly;
+// any other request falls back to dist/index.html so the client-side router
+// (TanStack Router) can take over.
+//
+// Before the frontend is built (no index.html in dist/), the handler still
+// compiles and serves dist/.gitkeep as a sentinel, so `go test ./...` and
+// `go build` succeed without running `npm run build` first. In that state,
+// real requests return 404.
 func Handler() http.Handler {
-	root, err := fs.Sub(assets, ".")
+	sub, err := fs.Sub(distFS, "dist")
 	if err != nil {
 		panic(err)
 	}
+	fileServer := http.FileServer(http.FS(sub))
 
-	return http.FileServerFS(root)
+	index, indexErr := fs.ReadFile(sub, "index.html")
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		clean := strings.TrimPrefix(r.URL.Path, "/")
+		if clean == "" {
+			clean = "index.html"
+		}
+
+		if f, err := sub.Open(clean); err == nil {
+			_ = f.Close()
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+
+		if indexErr != nil {
+			http.NotFound(w, r)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(index)
+	})
 }

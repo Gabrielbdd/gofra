@@ -44,13 +44,19 @@ run = "mkdocs serve"
 description = "Generate a temporary app from the starter and verify it with go test"
 run = '''
 set -eu
+framework="$(pwd)"
 tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/gofra-smoke-XXXXXX")"
 env GOCACHE="${GOCACHE:-/tmp/gofra-gocache}" go run ./cmd/gofra new "$tmpdir"
 (
   cd "$tmpdir"
+  # Point the generated app at this workspace's in-tree framework so smoke
+  # exercises unreleased changes (new CLI flags, new runtime packages) that
+  # the published module version does not yet include.
+  env GOWORK=off GOFLAGS=-mod=mod go mod edit -replace "github.com/Gabrielbdd/gofra=$framework"
+  env GOWORK=off GOFLAGS=-mod=mod GOCACHE="${GOCACHE:-/tmp/gofra-gocache}" go mod tidy
   mise trust --yes
   mise run generate
-  env GOCACHE="${GOCACHE:-/tmp/gofra-gocache}" go test ./...
+  env GOWORK=off GOFLAGS=-mod=mod GOCACHE="${GOCACHE:-/tmp/gofra-gocache}" go test ./...
 )
 printf 'generated app verified at %s\n' "$tmpdir"
 '''

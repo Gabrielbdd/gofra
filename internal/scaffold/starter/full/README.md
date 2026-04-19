@@ -67,7 +67,9 @@ The starter ships with these `mise` tasks:
 | --- | --- |
 | `mise run generate` | Regenerate config code from the proto schema. |
 | `mise run test` | Run `go test ./...` after regenerating config code. |
-| `mise run build` | Build the application binary to `bin/__GOFRA_APP_NAME__`. |
+| `mise run build` | Build the Go binary (embeds `web/dist`) to `bin/__GOFRA_APP_NAME__`. |
+| `mise run web:dev` | Start the Vite dev server on `:5173` (pair with `mise run dev` in another terminal). |
+| `mise run web:build` | Build the frontend into `web/dist` so the Go binary can embed it. |
 | `mise run dev` | Start the backend locally (depends on `generate`). |
 | `mise run infra` | Start local infrastructure (Postgres + ZITADEL) via Compose. |
 | `mise run infra:stop` / `infra:reset` / `infra:logs` | Manage local infrastructure. |

@@ -22,16 +22,18 @@ and reproducibility.
 
 ## Implementation Status
 
-The generated starter currently ships only the PostgreSQL slice of this design:
+The generated starter now ships the PostgreSQL + ZITADEL slice of this design:
 
-- root-level `compose.yaml`
+- root-level `compose.yaml` with `postgres` and `zitadel` services
 - `scripts/compose.sh` to pick Docker Compose or Podman Compose
-- `scripts/load-env.sh` to share DB settings across Compose, goose, and app runtime
+- `scripts/load-env.sh` to share DB and ZITADEL settings across Compose and app runtime
+- `scripts/wait-for-postgres.sh` and `scripts/wait-for-zitadel.sh`
 - `mise run infra`, `infra:stop`, `infra:reset`, and `infra:logs`
 - pinned official Postgres image `postgres:18.3-alpine3.23`
+- ZITADEL at `ghcr.io/zitadel/zitadel:stable`, exposed on `:8081`
 
-Restate, Zitadel, and Jaeger remain planned expansion items. The rest of this
-document still describes the target full-stack local environment.
+Restate and Jaeger remain planned expansion items. The rest of this document
+still describes the target full-stack local environment.
 
 ---
 
@@ -396,25 +398,37 @@ on startup because its database isn't ready.
 
 ## Zitadel Bootstrap
 
-On first `docker compose up`, Zitadel initializes itself (`start-from-init`):
+On first `docker compose up`, ZITADEL runs `start-from-init` and bootstraps
+itself using the Postgres admin credentials wired in the starter
+`compose.yaml`:
 
-1. Creates its database schemas in the `zitadel` Postgres database
-2. Creates a default instance and organization
-3. Creates an admin user (`admin@gofra.local` / `Admin1234!`)
+1. Creates the `zitadel` Postgres database and dedicated `zitadel` user.
+2. Creates its own schemas inside that database.
+3. Creates the default instance, organization, and a first admin user.
 
-The developer then manually:
+This is **vanilla** ZITADEL initialization — the starter does not ship a
+`steps.yaml`, does not create a provisioner machine user, and does not write
+any PAT to disk. Those are application-level concerns: an app that wants
+automated, console-free onboarding configures its own `FirstInstance` steps
+(see [`runtime/zitadel`](framework/reference/runtime/zitadel.md) and the
+consumer-app patterns in `docs/project/`).
 
-1. Opens `http://localhost:8081` and logs in as admin
-2. Creates a Project (e.g., "myapp")
-3. Creates an Application (type: PKCE/SPA, redirect URI: `http://localhost:3000/auth/callback`)
-4. Enables "Assert roles on authentication" in project settings
-5. Copies the Client ID to `.env`
+**Runtime auth is opt-in.** The generated Go binary only installs the JWT
+middleware when both `auth.issuer` and `auth.audience` are set in
+`gofra.yaml`. A fresh starter runs without any ZITADEL configuration, even
+though the compose service is up alongside Postgres.
 
-**Reason for manual Zitadel setup**: Automating Zitadel project/application
-creation requires calling the Zitadel API with a service account — which
-itself requires a project and application to exist (chicken-and-egg). The
-manual setup takes 2 minutes and happens once. A future `gofra setup` CLI
-command could automate this using Zitadel's machine-to-machine bootstrap flow.
+**Reason for ZITADEL in the default compose**: identity is a standard
+dependency of any consumer app Gofra targets. Shipping ZITADEL alongside
+Postgres removes a setup step, matches the framework's batteries-included
+posture, and lets downstream apps treat ZITADEL as a ready neighbor rather
+than a manual prerequisite.
+
+**Reason the starter does not automate project/application creation**: that
+decision is per-app. Some apps ship a one-page install wizard and provision
+their own projects; others accept manual setup for the first deploy. Forcing
+either policy into the framework starter would leak product shape into
+framework defaults.
 
 ---
 

@@ -46,8 +46,9 @@ of that generated application.
 │               └── config.proto  # Configuration schema (protobuf)
 ├── scripts/
 │   ├── compose.sh            # Picks Docker Compose or Podman Compose
-│   ├── load-env.sh           # Loads optional .env and derives DB env vars
-│   └── wait-for-postgres.sh  # Waits for Postgres readiness after compose up
+│   ├── load-env.sh           # Loads optional .env and derives DB + ZITADEL env vars
+│   ├── wait-for-postgres.sh  # Waits for Postgres readiness after compose up
+│   └── wait-for-zitadel.sh   # Waits for ZITADEL /debug/healthz to return 200
 ├── web/
 │   ├── embed.go              # Embeds web assets into the binary
 │   └── index.html            # SPA starter page
@@ -109,8 +110,9 @@ message types:
 | `audience` | `string` | `""` | Expected JWT audience claim; empty disables auth |
 
 When either field is empty the server logs `auth disabled` and does not
-install the JWT middleware, so a fresh starter is runnable without ZITADEL
-infrastructure.
+install the JWT middleware. ZITADEL ships in the default `compose.yaml`, but
+the Go binary itself does not require any ZITADEL configuration — a fresh
+starter runs without touching identity settings.
 
 **`DatabaseConfig`**:
 
@@ -175,13 +177,25 @@ overridden by environment variables or CLI flags.
 
 ### `compose.yaml`
 
-The local infrastructure definition for the generated app. Today it contains
-one Postgres service with:
+The local infrastructure definition for the generated app. It contains two
+services:
 
-- a pinned official image tag (`postgres:18.3-alpine3.23`)
-- a named volume (`postgres_data`) so `infra:stop` keeps data
-- a `pg_isready` healthcheck so the `infra` task can wait for readiness
+**`postgres`**:
+
+- pinned official image tag (`postgres:18.3-alpine3.23`)
+- named volume (`postgres_data`) so `infra:stop` keeps data
+- `pg_isready` healthcheck so the `infra` task can wait for readiness
 - environment-variable defaults that line up with `gofra.yaml`
+
+**`zitadel`**:
+
+- pinned image `ghcr.io/zitadel/zitadel:stable`
+- runs `start-from-init --masterkeyFromEnv --tlsMode disabled`, depending on
+  Postgres being healthy
+- bootstraps its own `zitadel` database and user on first start, using the
+  Postgres admin credentials wired in via `ZITADEL_DATABASE_POSTGRES_ADMIN_*`
+- exposed on `:8081` so it does not collide with other services that may
+  claim `:8080` later (Restate, Vite preview, etc.)
 
 The compose file uses the canonical `compose.yaml` name and is designed to work
 with either Docker Compose or Podman Compose via `scripts/compose.sh`.
@@ -194,10 +208,10 @@ Task runner definitions:
 |------|-----------|-------------|
 | `generate` | — | Generates config code from proto via `gofra generate config` |
 | `gen:sql` | — | Generates Go code from SQL queries via `sqlc generate` |
-| `infra` | — | Starts local PostgreSQL via Compose and waits until ready |
+| `infra` | — | Starts local PostgreSQL + ZITADEL via Compose and waits until both are ready |
 | `infra:stop` | — | Stops local infrastructure containers |
 | `infra:reset` | — | Stops local infrastructure and removes volumes |
-| `infra:logs` | — | Tails Postgres logs from the Compose service |
+| `infra:logs` | — | Tails Compose service logs |
 | `dev` | `generate` | Generates code then runs `go run ./cmd/app` |
 | `migrate` | — | Runs pending database migrations via goose |
 | `migrate:create` | — | Creates a new migration file |
@@ -228,10 +242,13 @@ match the generated `gofra.yaml`.
 - **`compose.sh`** — Detects `docker compose`, `podman compose`,
   `docker-compose`, or `podman-compose` and always runs against the app's
   root `compose.yaml`.
-- **`load-env.sh`** — Loads optional `.env` overrides and exports one derived
-  database URL contract for Compose, goose, and the Go app.
+- **`load-env.sh`** — Loads optional `.env` overrides and exports the
+  database URL contract plus the `GOFRA_ZITADEL_*` variables so Compose,
+  goose, and the Go app see the same values.
 - **`wait-for-postgres.sh`** — Polls `pg_isready` through Compose until the
   Postgres service accepts connections.
+- **`wait-for-zitadel.sh`** — Polls `GET /debug/healthz` on the host side
+  (curl or wget) until ZITADEL returns 200.
 
 ### `db/`
 

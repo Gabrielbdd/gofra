@@ -18,5 +18,30 @@ services:
       retries: 20
       start_period: 5s
 
+  zitadel:
+    image: ${GOFRA_ZITADEL_IMAGE:-ghcr.io/zitadel/zitadel:stable}
+    restart: unless-stopped
+    command: start-from-init --masterkeyFromEnv --tlsMode disabled
+    environment:
+      ZITADEL_MASTERKEY: ${GOFRA_ZITADEL_MASTERKEY:-MasterkeyNeedsToHave32Characters}
+      ZITADEL_EXTERNALSECURE: "false"
+      ZITADEL_EXTERNALDOMAIN: ${GOFRA_ZITADEL_EXTERNAL_DOMAIN:-localhost}
+      ZITADEL_EXTERNALPORT: ${GOFRA_ZITADEL_PORT:-8081}
+      ZITADEL_PORT: "8080"
+      ZITADEL_DATABASE_POSTGRES_HOST: postgres
+      ZITADEL_DATABASE_POSTGRES_PORT: "5432"
+      ZITADEL_DATABASE_POSTGRES_DATABASE: zitadel
+      ZITADEL_DATABASE_POSTGRES_USER_USERNAME: zitadel
+      ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: zitadel
+      ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
+      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: ${GOFRA_DB_USER:-postgres}
+      ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: ${GOFRA_DB_PASSWORD:-postgres}
+      ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE: disable
+    ports:
+      - "${GOFRA_ZITADEL_PORT:-8081}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres_data:

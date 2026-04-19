@@ -100,6 +100,7 @@ run = """
 . ./scripts/load-env.sh
 sh ./scripts/compose.sh up -d
 sh ./scripts/wait-for-postgres.sh
+sh ./scripts/wait-for-zitadel.sh
 """
 
 [tasks."infra:stop"]
@@ -128,13 +129,18 @@ goose -dir db/migrations postgres "$DATABASE_URL" up
 """
 ```
 
-Two details make this DX coherent:
+Three details make this DX coherent:
 
 - `scripts/compose.sh` detects Docker Compose or Podman Compose, so
   `mise run infra` uses one command surface regardless of the local engine.
 - `scripts/load-env.sh` loads optional `.env` overrides and derives
   `DATABASE_URL` plus `GOFRA_DATABASE__DSN`, so Compose, goose, and the Go app
-  all see the same local database settings.
+  all see the same local database settings. It also exports the
+  `GOFRA_ZITADEL_*` variables consumed by `compose.yaml`.
+- `scripts/wait-for-postgres.sh` and `scripts/wait-for-zitadel.sh` gate
+  `mise run infra` on real service readiness — Postgres via `pg_isready` and
+  ZITADEL via `GET /debug/healthz` — so downstream tasks never race a
+  not-yet-ready dependency.
 
 ### Target Full Generated App Task Definitions
 

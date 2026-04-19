@@ -17,6 +17,11 @@ fi
 : "${GOFRA_DB_NAME:=__GOFRA_APP_NAME__}"
 : "${GOFRA_DB_SSLMODE:=disable}"
 
+: "${GOFRA_ZITADEL_IMAGE:=ghcr.io/zitadel/zitadel:stable}"
+: "${GOFRA_ZITADEL_PORT:=8081}"
+: "${GOFRA_ZITADEL_EXTERNAL_DOMAIN:=localhost}"
+: "${GOFRA_ZITADEL_MASTERKEY:=MasterkeyNeedsToHave32Characters}"
+
 default_database_url="postgres://${GOFRA_DB_USER}:${GOFRA_DB_PASSWORD}@${GOFRA_DB_HOST}:${GOFRA_DB_PORT}/${GOFRA_DB_NAME}?sslmode=${GOFRA_DB_SSLMODE}"
 : "${DATABASE_URL:=$default_database_url}"
 : "${GOFRA_DATABASE__DSN:=$DATABASE_URL}"
@@ -28,5 +33,9 @@ export GOFRA_DB_USER
 export GOFRA_DB_PASSWORD
 export GOFRA_DB_NAME
 export GOFRA_DB_SSLMODE
+export GOFRA_ZITADEL_IMAGE
+export GOFRA_ZITADEL_PORT
+export GOFRA_ZITADEL_EXTERNAL_DOMAIN
+export GOFRA_ZITADEL_MASTERKEY
 export DATABASE_URL
 export GOFRA_DATABASE__DSN

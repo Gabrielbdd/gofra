@@ -16,10 +16,15 @@ Today the starter includes:
 - a proto-driven config schema in `proto/__GOFRA_PROTO_PACKAGE__/config/v1/config.proto`
 - config code generation via `mise run generate` (produces `config/*_gen.go`)
 - optional YAML overrides in `gofra.yaml`
-- a `compose.yaml` file for local PostgreSQL with a named volume and healthcheck
+- a `compose.yaml` file for local PostgreSQL + ZITADEL, with named volumes and healthchecks
 - `mise run infra` tasks that work with either Docker Compose or Podman Compose
 - a minimal embedded web shell in `web/`
 - health check endpoints at `/startupz`, `/livez`, `/readyz` (Kubernetes convention)
+
+ZITADEL is provisioned alongside Postgres so identity is a ready dependency on
+day one. The Go binary still treats auth as **opt-in**: the JWT middleware
+only activates when both `auth.issuer` and `auth.audience` are set in
+`gofra.yaml`. A fresh generated app runs without any ZITADEL configuration.
 
 Config fields, defaults, and descriptions are defined once in the proto file.
 Run `mise run generate` after editing the proto to regenerate the Go code.
@@ -36,8 +41,10 @@ mise run dev
 `mise run dev` depends on `mise run generate`, so config code is always
 up-to-date before the server starts.
 
-`mise run infra` starts PostgreSQL through either `docker compose` or
-`podman compose`, then waits until the database accepts connections.
+`mise run infra` starts PostgreSQL and ZITADEL through either `docker compose`
+or `podman compose`, then waits until Postgres accepts connections and ZITADEL
+returns 200 on `/debug/healthz`. ZITADEL is exposed at
+`http://localhost:${GOFRA_ZITADEL_PORT:-8081}`.
 
 The default database settings already line up across `compose.yaml`,
 `gofra.yaml`, and the migration tasks, so no `.env` file is required for the
@@ -62,7 +69,7 @@ The starter ships with these `mise` tasks:
 | `mise run test` | Run `go test ./...` after regenerating config code. |
 | `mise run build` | Build the application binary to `bin/__GOFRA_APP_NAME__`. |
 | `mise run dev` | Start the backend locally (depends on `generate`). |
-| `mise run infra` | Start local infrastructure (Postgres) via Compose. |
+| `mise run infra` | Start local infrastructure (Postgres + ZITADEL) via Compose. |
 | `mise run infra:stop` / `infra:reset` / `infra:logs` | Manage local infrastructure. |
 | `mise run migrate` / `migrate:create` / `migrate:down` / `migrate:status` | Manage database migrations via `goose`. |
 | `mise run seed` | Seed the database with development data. |

@@ -19,6 +19,14 @@ type Options struct {
 
 	// RuntimeImport is the import path for the framework's runtime/config package.
 	RuntimeImport string
+
+	// TSOutDir is the directory for generated TypeScript. Empty disables TS
+	// emission.
+	TSOutDir string
+
+	// TSGlobalName is the window global name the generated TS loader reads
+	// the public config from (default: "__GOFRA_CONFIG__").
+	TSGlobalName string
 }
 
 // Generate parses a config.proto file and generates Go code.
@@ -61,6 +69,22 @@ func Generate(opts Options) error {
 		path := filepath.Join(opts.OutputDir, e.name)
 		if err := os.WriteFile(path, content, 0o644); err != nil {
 			return fmt.Errorf("configgen: write %s: %w", path, err)
+		}
+	}
+
+	if opts.TSOutDir != "" {
+		tsContent, err := EmitTSPublic(schema, opts.TSGlobalName)
+		if err != nil {
+			return fmt.Errorf("configgen: emit runtime-config.ts: %w", err)
+		}
+		if tsContent != nil {
+			if err := os.MkdirAll(opts.TSOutDir, 0o755); err != nil {
+				return fmt.Errorf("configgen: mkdir %s: %w", opts.TSOutDir, err)
+			}
+			tsPath := filepath.Join(opts.TSOutDir, "runtime-config.ts")
+			if err := os.WriteFile(tsPath, tsContent, 0o644); err != nil {
+				return fmt.Errorf("configgen: write %s: %w", tsPath, err)
+			}
 		}
 	}
 

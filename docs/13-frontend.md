@@ -18,14 +18,26 @@
 
 ## How Types Flow
 
+Two generators feed the browser:
+
 ```
 posts.proto
     │
     ├── protoc-gen-es         → web/src/gen/.../posts_pb.ts        (TS message types)
     └── protoc-gen-connect-query → web/src/gen/.../posts_connectquery.ts (TanStack hooks)
+
+config.proto
+    │
+    └── gofra generate config -ts-out web/src/gen
+                              → web/src/gen/runtime-config.ts (public config types + loader)
 ```
 
 **Decision #22.** The frontend developer writes `const { data } = useQuery(listPosts, { pageSize: 20 })` and `data` has the exact type of `ListPostsResponse`. No manual type definitions. No `any`. No `fetch` wrappers.
+
+**Decision #Ncfg.** Public runtime config types come from the same
+`config.proto` the backend uses — one proto, both sides. The generator
+emits plain TS interfaces (no proto-es dependency for the runtime-config
+path), plus `runtimeConfig` and `loadRuntimeConfig` accessors.
 
 ## Transport Configuration
 
@@ -91,28 +103,37 @@ import { runtimeConfig } from "@/gen/runtime/runtime-config";
 export { runtimeConfig };
 ```
 
-The generated frontend files are:
+The generator currently emits a single TS module:
 
-- `web/src/gen/runtime/runtime_config_pb.ts` for the runtime-config message and
-  schema
-- `web/src/gen/runtime/runtime-config.ts` for the generated loader APIs
-- `web/src/gen/runtime/runtime-config.global.d.ts` for the `Window`
-  augmentation of `__GOFRA_CONFIG__`
-- `web/src/lib/runtime-config.ts` as the app-owned re-export layer
+- `web/src/gen/runtime-config.ts` — public config TS interfaces + a typed
+  `RuntimeConfig` alias + `Window.__GOFRA_CONFIG__` augmentation +
+  `runtimeConfig` and `loadRuntimeConfig` accessors.
 
-The generated loader reads `window.__GOFRA_CONFIG__`, treats it as `unknown`,
-validates/parses it using the generated protobuf schema, and exports a typed,
-immutable object.
+App code imports from that file directly (no separate re-export layer is
+required today):
+
+```ts
+// web/src/some-feature.tsx
+import { runtimeConfig, loadRuntimeConfig } from "@/gen/runtime-config";
+```
+
+The generated loader reads `window.__GOFRA_CONFIG__`. `runtimeConfig` is a
+`Partial<RuntimeConfig>` for the common case (falls back to `{}` when the
+global is absent — useful during SSR or tests). `loadRuntimeConfig()`
+fails fast with a clear error when the global is absent.
 
 The generated TypeScript APIs are:
 
 ```ts
-export type RuntimeConfig;
-export const runtimeConfig: RuntimeConfig;
+export interface PublicConfig { /* ...fields from proto public subtree... */ }
+export type RuntimeConfig = PublicConfig;
+export const runtimeConfig: Partial<RuntimeConfig>;
 export function loadRuntimeConfig(): RuntimeConfig;
-export function validateRuntimeConfig(value: unknown): RuntimeConfig;
-export function isRuntimeConfig(value: unknown): value is RuntimeConfig;
 ```
+
+**Runtime schema validation is out of scope for this generator.** Apps that
+need it can pair the output with a proto-es pipeline emitting `*_pb.ts`
+and validate `window.__GOFRA_CONFIG__` against that schema before use.
 
 On the backend, Gofra also generates a convention-first resolver. Proto fields
 bind to the generated `cfg.Public` subtree by matching nested names:

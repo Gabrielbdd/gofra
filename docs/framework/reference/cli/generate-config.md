@@ -25,10 +25,16 @@ gofra generate config [flags] <proto-file>
 | `--out` | `"config"` | Output directory for generated Go files |
 | `--package` | `"config"` | Go package name for generated code |
 | `--runtime` | `""` | Import path for the framework's `runtime/config` package |
+| `--ts-out` | `""` | Output directory for generated TypeScript (empty disables TS emission) |
+| `--ts-global-name` | `"__GOFRA_CONFIG__"` | Window global name the TS loader reads the public config from |
 
 The `--runtime` flag is required when the generated code needs to import
 `runtimeconfig`. In generated apps, this is set to the framework module's
 `runtime/config` path.
+
+The `--ts-out` flag opts into emitting a matching TypeScript module for
+the browser. Leave it empty to skip TS emission entirely. When the proto
+has no `public` subtree, no TS file is written even if `--ts-out` is set.
 
 ## Proto Schema Requirements
 
@@ -98,7 +104,8 @@ Secret fields:
 
 ## Generated Output
 
-The generator produces three files in the output directory:
+The generator produces three Go files in `--out` and, when `--ts-out` is
+set, one TypeScript file in that directory:
 
 ### `config_gen.go`
 
@@ -188,6 +195,28 @@ Returns an HTTP handler that serves the public config as JavaScript at
 delegates to `runtimeconfig.Handler`. Optional mutators can be passed for
 per-request config modification.
 
+### `runtime-config.ts`
+
+Emitted only when `--ts-out` is set **and** the proto has a `public`
+subtree. The file is a single self-contained module that:
+
+- Declares one TS `interface` per public message, in dependency order
+  (leaves first). Field names use proto's `jsonName` convention
+  (camelCase). Scalar types map to `string`, `number`, or `boolean`.
+- Exports `type RuntimeConfig = PublicConfig` so consumers have a stable
+  root alias.
+- Augments `Window` via `declare global` with an optional field named
+  after `--ts-global-name` (default `__GOFRA_CONFIG__`).
+- Exports `const runtimeConfig: Partial<RuntimeConfig>` for the common
+  case — the value is `window.__GOFRA_CONFIG__` or `{}` when the global
+  is absent (e.g., during SSR or tests).
+- Exports `loadRuntimeConfig(): RuntimeConfig` for fail-fast consumers.
+  Throws when the global is absent.
+
+The generator does not emit runtime schema validation. Consumer apps that
+need it can pair this output with a proto-es pipeline emitting `*_pb.ts`
+and validate `window.__GOFRA_CONFIG__` against that schema before use.
+
 ## Example Proto Schema
 
 ```protobuf
@@ -225,6 +254,9 @@ gofra generate config \
 
 Produces `config/config_gen.go`, `config/load_gen.go`, and
 `config/public_gen.go`.
+
+Add `--ts-out web/src/gen` to also emit `web/src/gen/runtime-config.ts`
+for the browser SPA.
 
 ## Errors
 
